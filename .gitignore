@@ -66,6 +66,8 @@ man/
 html/
 nmake.local
 build
+build32
+build64
 lib
 include
 port/cpl_config.h
