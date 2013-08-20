@@ -4,7 +4,7 @@
  * Name:     georaster_rasterband.cpp
  * Project:  Oracle Spatial GeoRaster Driver
  * Purpose:  Implement GeoRasterRasterBand methods
- * Author:   Ivan Lucena [ivan.lucena@pmldnet.com]
+ * Author:   Ivan Lucena [ivan.lucena at oracle.com]
  *
  ******************************************************************************
  * Copyright (c) 2008, Ivan Lucena
@@ -713,15 +713,15 @@ CPLErr GeoRasterRasterBand::SetDefaultRAT( const GDALRasterAttributeTable *poRAT
 //                                                              GetDefaultRAT()
 //  ---------------------------------------------------------------------------
 
-const GDALRasterAttributeTable *GeoRasterRasterBand::GetDefaultRAT()
+GDALRasterAttributeTable *GeoRasterRasterBand::GetDefaultRAT()
 {
     if( poDefaultRAT )
     {
-        return poDefaultRAT->Clone();
+        return poDefaultRAT;
     }
     else
     {
-        poDefaultRAT = new GDALRasterAttributeTable();
+        poDefaultRAT = new GDALDefaultRasterAttributeTable();
     }
 
     GeoRasterDataset* poGDS = (GeoRasterDataset*) poDS;

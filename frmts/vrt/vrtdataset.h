@@ -71,7 +71,7 @@ public:
 /*                              VRTSource                               */
 /************************************************************************/
 
-class VRTSource 
+class CPL_DLL VRTSource 
 {
 public:
     virtual ~VRTSource();
@@ -348,6 +348,8 @@ class CPL_DLL VRTRasterBand : public GDALRasterBand
 /*                         VRTSourcedRasterBand                         */
 /************************************************************************/
 
+class VRTSimpleSource;
+
 class CPL_DLL VRTSourcedRasterBand : public VRTRasterBand
 {
   private:
@@ -425,6 +427,13 @@ class CPL_DLL VRTSourcedRasterBand : public VRTRasterBand
     CPLErr         AddFuncSource( VRTImageReadFunc pfnReadFunc, void *hCBData,
                                   double dfNoDataValue = VRT_NODATA_UNSET );
 
+    void           ConfigureSource(VRTSimpleSource *poSimpleSource,
+                                           GDALRasterBand *poSrcBand,
+                                           int bAddAsMaskBand,
+                                           int nSrcXOff, int nSrcYOff,
+                                           int nSrcXSize, int nSrcYSize,
+                                           int nDstXOff, int nDstYOff,
+                                           int nDstXSize, int nDstYSize);
 
     virtual CPLErr IReadBlock( int, int, void * );
     
@@ -557,7 +566,7 @@ class VRTDriver : public GDALDriver
 /*                           VRTSimpleSource                            */
 /************************************************************************/
 
-class VRTSimpleSource : public VRTSource
+class CPL_DLL VRTSimpleSource : public VRTSource
 {
 protected:
     GDALRasterBand      *poRasterBand;
@@ -671,9 +680,30 @@ public:
 /*                           VRTComplexSource                           */
 /************************************************************************/
 
-class VRTComplexSource : public VRTSimpleSource
+typedef enum
+{
+    VRT_SCALING_NONE,
+    VRT_SCALING_LINEAR,
+    VRT_SCALING_EXPONENTIAL,
+} VRTComplexSourceScaling;
+
+class CPL_DLL VRTComplexSource : public VRTSimpleSource
 {
 protected:
+    VRTComplexSourceScaling eScalingType;
+    double         dfScaleOff; /* for linear scaling */
+    double         dfScaleRatio; /* for linear scaling */
+
+    /* For non-linear scaling with a power function. */
+    int            bSrcMinMaxDefined;
+    double         dfSrcMin;
+    double         dfSrcMax;
+    double         dfDstMin;
+    double         dfDstMax;
+    double         dfExponent;
+
+    int            nColorTableComponent;
+
     CPLErr          RasterIOInternal( int nReqXOff, int nReqYOff,
                                       int nReqXSize, int nReqYSize,
                                       void *pData, int nOutXSize, int nOutYSize,
@@ -708,14 +738,19 @@ public:
     virtual const char* GetType() { return "ComplexSource"; }
 
     double  LookupValue( double dfInput );
+    
+    void    SetLinearScaling(double dfOffset, double dfScale);
+    void    SetPowerScaling(double dfExponent,
+                            double dfSrcMin,
+                            double dfSrcMax,
+                            double dfDstMin,
+                            double dfDstMax);
+    void    SetColorTableComponent(int nComponent);
 
-    int            bDoScaling;
-    double         dfScaleOff;
-    double         dfScaleRatio;
     double         *padfLUTInputs;
     double         *padfLUTOutputs;
     int            nLUTItemCount;
-    int            nColorTableComponent;
+
 };
 
 /************************************************************************/

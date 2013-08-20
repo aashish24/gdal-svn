@@ -86,7 +86,6 @@ HDF5Dataset::HDF5Dataset()
     poH5RootGroup       = NULL;
     nSubDataCount       = 0;
     hHDF5               = -1;
-    hDatasetID          = -1;
     hGroupID            = -1;
     bIsHDFEOS           = FALSE;
     nDatasetType        = -1;
@@ -121,6 +120,8 @@ HDF5Dataset::~HDF5Dataset()
 GDALDataType HDF5Dataset::GetDataType(hid_t TypeID)
 {
     if( H5Tequal( H5T_NATIVE_CHAR,        TypeID ) )
+        return GDT_Byte;
+    else if( H5Tequal( H5T_NATIVE_SCHAR,  TypeID ) )
         return GDT_Byte;
     else if( H5Tequal( H5T_NATIVE_UCHAR,  TypeID ) )
         return GDT_Byte;
@@ -169,6 +170,8 @@ const char *HDF5Dataset::GetDataTypeName(hid_t TypeID)
 {
     if( H5Tequal( H5T_NATIVE_CHAR,        TypeID ) )
         return "8-bit character";
+    else if( H5Tequal( H5T_NATIVE_SCHAR,  TypeID ) )
+        return "8-bit signed character";
     else if( H5Tequal( H5T_NATIVE_UCHAR,  TypeID ) )
         return "8-bit unsigned character";
     else if( H5Tequal( H5T_NATIVE_SHORT,  TypeID ) )
@@ -230,7 +233,6 @@ int HDF5Dataset::Identify( GDALOpenInfo * poOpenInfo )
 GDALDataset *HDF5Dataset::Open( GDALOpenInfo * poOpenInfo )
 {
     HDF5Dataset *poDS;
-    CPLErr      Err;
 
     if( !Identify( poOpenInfo ) )
         return NULL;
@@ -261,7 +263,7 @@ GDALDataset *HDF5Dataset::Open( GDALOpenInfo * poOpenInfo )
     }
 
     poDS->bIsHDFEOS=true;
-    Err = poDS->ReadGlobalAttributes( true );
+    poDS->ReadGlobalAttributes( true );
 
     poDS->SetMetadata( poDS->papszMetadata  );
 
@@ -333,6 +335,11 @@ void HDF5Dataset::DestroyH5Objects( HDF5GroupObjects *poH5Object )
 
     CPLFree( poH5Object->pszUnderscorePath );
     poH5Object->pszUnderscorePath = NULL;
+    
+    if( poH5Object->native > 0 )
+        H5Tclose( poH5Object->native );
+    poH5Object->native = 0;
+
 /* -------------------------------------------------------------------- */
 /*      All Children are visited and can be deleted.                    */
 /* -------------------------------------------------------------------- */
@@ -436,7 +443,6 @@ static int HDF5GroupCheckDuplicate( HDF5GroupObjects *poHparent,
 herr_t HDF5CreateGroupObjs(hid_t hHDF5, const char *pszObjName,
                            void *poHObjParent)
 {
-    herr_t      ret;            /* error return status */
     hid_t       hGroupID;       /* identifier of group */
     hid_t       hDatasetID;     /* identifier of dataset */
     hsize_t     nbObjs=0;       /* number of objects in a group */
@@ -449,7 +455,6 @@ herr_t HDF5CreateGroupObjs(hid_t hHDF5, const char *pszObjName,
     hid_t       datatype;
     hid_t       dataspace;
     hid_t       native;
-    herr_t status;
 
     HDF5GroupObjects *poHchild;
     HDF5GroupObjects *poHparent;
@@ -511,7 +516,7 @@ herr_t HDF5CreateGroupObjs(hid_t hHDF5, const char *pszObjName,
                 return -1;
             }
             nbAttrs          = H5Aget_num_attrs( hGroupID );
-            ret              = H5Gget_num_objs( hGroupID, &nbObjs );
+            H5Gget_num_objs( hGroupID, &nbObjs );
             poHchild->nbAttrs= nbAttrs;
             poHchild->nbObjs = (int) nbObjs;
             poHchild->nRank      = 0;
@@ -554,7 +559,7 @@ herr_t HDF5CreateGroupObjs(hid_t hHDF5, const char *pszObjName,
                 dims     = (hsize_t *) CPLCalloc( n_dims,sizeof( hsize_t ) );
                 maxdims  = (hsize_t *) CPLCalloc( n_dims,sizeof( hsize_t ) );
             }
-            status     = H5Sget_simple_extent_dims( dataspace, dims, maxdims );
+            H5Sget_simple_extent_dims( dataspace, dims, maxdims );
             if( maxdims != NULL )
                 CPLFree( maxdims );
 
@@ -572,7 +577,9 @@ herr_t HDF5CreateGroupObjs(hid_t hHDF5, const char *pszObjName,
             poHchild->nbObjs    = 0;
             poHchild->poHchild  = NULL;
             poHchild->native    = native;
-            ret                 = H5Dclose( hDatasetID );
+            H5Tclose( datatype );
+            H5Sclose( dataspace );
+            H5Dclose( hDatasetID );
             break;
 
         case H5G_TYPE:
@@ -700,7 +707,8 @@ herr_t HDF5AttrIterate( hid_t hH5ObjID,
             szValue[0] ='\0';
             H5Aread( hAttrID, hAttrNativeType, buf );
         }
-        if( H5Tequal( H5T_NATIVE_CHAR, hAttrNativeType ) ){
+        if( H5Tequal( H5T_NATIVE_CHAR, hAttrNativeType ) 
+            || H5Tequal( H5T_NATIVE_SCHAR,  hAttrNativeType ) ) {
             for( i=0; i < nAttrElmts; i++ ) {
                 sprintf( szData, "%c ", ((char *) buf)[i]);
                 if( CPLStrlcat(szValue, szData, MAX_METADATA_LEN) >=
@@ -813,7 +821,6 @@ CPLErr HDF5Dataset::CreateMetadata( HDF5GroupObjects *poH5Object, int nType)
     hid_t       hGroupID;       /* identifier of group */
     hid_t       hDatasetID;
     int         nbAttrs;
-    herr_t      ret;
 
     HDF5Dataset *poDS;
 
@@ -832,23 +839,20 @@ CPLErr HDF5Dataset::CreateMetadata( HDF5GroupObjects *poH5Object, int nType)
 
     case H5G_GROUP:
 
-        hGroupID = H5Gopen( hHDF5, poH5Object->pszPath );
         if( nbAttrs > 0 ) {
-            ret = H5Aiterate( hGroupID, NULL,
-                              HDF5AttrIterate, (void *)poDS  );
-            ret = H5Gclose( hGroupID );
+            hGroupID = H5Gopen( hHDF5, poH5Object->pszPath );
+            H5Aiterate( hGroupID, NULL, HDF5AttrIterate, (void *)poDS  );
+            H5Gclose( hGroupID );
         }
 
         break;
 
     case H5G_DATASET:
 
-        hDatasetID =  H5Dopen(hHDF5, poH5Object->pszPath );
-
         if( nbAttrs > 0 ) {
-            ret = H5Aiterate( hDatasetID, NULL,
-                              HDF5AttrIterate, (void *)poDS );
-            ret = H5Dclose( hDatasetID );
+            hDatasetID =  H5Dopen(hHDF5, poH5Object->pszPath );
+            H5Aiterate( hDatasetID, NULL, HDF5AttrIterate, (void *)poDS );
+            H5Dclose( hDatasetID );
         }
         break;
 
@@ -1045,6 +1049,8 @@ CPLErr HDF5Dataset::ReadGlobalAttributes(int bSUBDATASET)
     poRootGroup->objno[0] = oStatbuf.objno[0];
     poRootGroup->objno[1] = oStatbuf.objno[1];
 
+    if( hGroupID > 0 )
+        H5Gclose( hGroupID );
     hGroupID = H5Gopen( hHDF5, "/" );
     if( hGroupID < 0 ){
         printf( "hGroupID <0!!\n" );

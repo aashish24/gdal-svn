@@ -61,6 +61,12 @@ OGRDataSource *OGRPGeoDriver::Open( const char * pszFilename,
 {
     OGRPGeoDataSource     *poDS;
 
+    if( EQUALN(pszFilename, "WALK:", strlen("WALK:")) )
+        return NULL;
+
+    if( EQUALN(pszFilename, "GEOMEDIA:", strlen("GEOMEDIA:")) )
+        return NULL;
+
     if( !EQUALN(pszFilename,"PGEO:",5) 
         && !EQUAL(CPLGetExtension(pszFilename),"mdb") )
         return NULL;
@@ -153,7 +159,7 @@ int OGRPGeoDriver::TestCapability( const char * pszCap )
 /*                           InstallMdbDriver()                         */
 /************************************************************************/
 
-bool OGRPGeoDriver::InstallMdbDriver()
+bool OGRODBCMDBDriver::InstallMdbDriver()
 {
     if ( !FindDriverLib() )
     {
@@ -162,7 +168,7 @@ bool OGRPGeoDriver::InstallMdbDriver()
     else
     {
         CPLAssert( !osDriverFile.empty() );
-        CPLDebug( "PGeo", "MDB Tools driver: %s", osDriverFile.c_str() );
+        CPLDebug( GetName(), "MDB Tools driver: %s", osDriverFile.c_str() );
 
         CPLString driverName("Microsoft Access Driver (*.mdb)");
         CPLString driver(driverName);
@@ -192,7 +198,7 @@ bool OGRPGeoDriver::InstallMdbDriver()
 /*                           FindDriverLib()                            */
 /************************************************************************/
 
-bool OGRPGeoDriver::FindDriverLib()
+bool OGRODBCMDBDriver::FindDriverLib()
 {
     // Default name and path of driver library
     const char* aszDefaultLibName[] = {
@@ -250,7 +256,7 @@ bool OGRPGeoDriver::FindDriverLib()
         }
     }
 
-    CPLError(CE_Failure, CPLE_AppDefined, "PGeo: MDB Tools driver not found!\n");
+    CPLError(CE_Failure, CPLE_AppDefined, "%s: MDB Tools driver not found!\n", GetName());
     // Driver not found!
     return false;
 }
@@ -259,7 +265,7 @@ bool OGRPGeoDriver::FindDriverLib()
 /*                           LibraryExists()                            */
 /************************************************************************/
 
-bool OGRPGeoDriver::LibraryExists(const char* pszLibPath)
+bool OGRODBCMDBDriver::LibraryExists(const char* pszLibPath)
 {
     CPLAssert( 0 != pszLibPath );
 

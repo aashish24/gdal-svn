@@ -28,7 +28,6 @@
  ****************************************************************************/
 
 #include "ogr_couchdb.h"
-#include "json_object_private.h" // json_object_iter, complete type required
 #include "ogrgeojsonreader.h"
 #include "ogrgeojsonutils.h"
 

@@ -73,6 +73,7 @@ OGRPGTableLayer::OGRPGTableLayer( OGRPGDataSource *poDSIn,
     bCopyActive = FALSE;
     bUseCopy = USE_COPY_UNSET;  // unknown
     bFIDColumnInCopyFields = FALSE;
+    bFirstInsertion = TRUE;
 
     pszTableName = CPLStrdup( pszTableNameIn );
     if (pszGeomColumnIn)
@@ -398,23 +399,28 @@ OGRFeatureDefn *OGRPGTableLayer::ReadTableDefinition()
         else if( EQUAL(pszType,"numeric") )
         {
             const char *pszFormatName = PQgetvalue(hResult,iRecord,3);
-            const char *pszPrecision = strstr(pszFormatName,",");
-            int    nWidth, nPrecision = 0;
-
-            nWidth = atoi(pszFormatName + 8);
-            if( pszPrecision != NULL )
-                nPrecision = atoi(pszPrecision+1);
-
-            if( nPrecision == 0 )
-            {
-                // FIXME : If nWidth > 10, OFTInteger may not be large enough */
-                oField.SetType( OFTInteger );
-            }
-            else
+            if( EQUAL(pszFormatName, "numeric") )
                 oField.SetType( OFTReal );
+            else
+            {
+                const char *pszPrecision = strstr(pszFormatName,",");
+                int    nWidth, nPrecision = 0;
 
-            oField.SetWidth( nWidth );
-            oField.SetPrecision( nPrecision );
+                nWidth = atoi(pszFormatName + 8);
+                if( pszPrecision != NULL )
+                    nPrecision = atoi(pszPrecision+1);
+
+                if( nPrecision == 0 )
+                {
+                    // FIXME : If nWidth > 10, OFTInteger may not be large enough */
+                    oField.SetType( OFTInteger );
+                }
+                else
+                    oField.SetType( OFTReal );
+
+                oField.SetWidth( nWidth );
+                oField.SetPrecision( nPrecision );
+            }
         }
         else if( EQUAL(pszFormatType,"integer[]") )
         {
@@ -1294,6 +1300,21 @@ OGRErr OGRPGTableLayer::CreateFeature( OGRFeature *poFeature )
         CPLError( CE_Failure, CPLE_AppDefined,
                   "NULL pointer to OGRFeature passed to CreateFeature()." );
         return OGRERR_FAILURE;
+    }
+
+    if( bFirstInsertion )
+    {
+        bFirstInsertion = FALSE;
+        if( CSLTestBoolean(CPLGetConfigOption("OGR_TRUNCATE", "NO")) )
+        {
+            PGconn              *hPGConn = poDS->GetPGConn();
+            PGresult            *hResult;
+            CPLString            osCommand;
+
+            osCommand.Printf("TRUNCATE TABLE %s", pszSqlTableName );
+            hResult = OGRPG_PQexec( hPGConn, osCommand.c_str() );
+            OGRPGClearResult( hResult );
+        }
     }
 
     // We avoid testing the config option too often. 

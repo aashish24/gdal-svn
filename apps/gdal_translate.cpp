@@ -57,7 +57,7 @@ static void Usage(const char* pszErrorMsg = NULL, int bShort = TRUE)
             "             CInt16/CInt32/CFloat32/CFloat64}] [-strict]\n"
             "       [-of format] [-b band] [-mask band] [-expand {gray|rgb|rgba}]\n"
             "       [-outsize xsize[%%] ysize[%%]]\n"
-            "       [-unscale] [-scale [src_min src_max [dst_min dst_max]]]\n"
+            "       [-unscale] [-scale[_bn] [src_min src_max [dst_min dst_max]]]* [-exponent[_bn] exp_val]*\n"
             "       [-srcwin xoff yoff xsize ysize] [-projwin ulx uly lrx lry] [-epo] [-eco]\n"
             "       [-a_srs srs_def] [-a_ullr ulx uly lrx lry] [-a_nodata value]\n"
             "       [-gcp pixel line easting northing [elevation]]*\n" 
@@ -261,6 +261,15 @@ enum
     do { if (i + nExtraArg >= argc) \
         Usage(CPLSPrintf("%s option requires %d argument(s)", argv[i], nExtraArg)); } while(0)
 
+
+typedef struct
+{
+    int     bScale;
+    int     bHaveScaleSrc;
+    double  dfScaleSrcMin, dfScaleSrcMax;
+    double  dfScaleDstMin, dfScaleDstMax;
+} ScaleParams;
+
 static int ProxyMain( int argc, char ** argv )
 
 {
@@ -279,9 +288,15 @@ static int ProxyMain( int argc, char ** argv )
     char                **papszCreateOptions = NULL;
     int                 anSrcWin[4], bStrict = FALSE;
     const char          *pszProjection;
-    int                 bScale = FALSE, bHaveScaleSrc = FALSE, bUnscale=FALSE;
-    double	        dfScaleSrcMin=0.0, dfScaleSrcMax=255.0;
-    double              dfScaleDstMin=0.0, dfScaleDstMax=255.0;
+
+    int                 bUnscale=FALSE;
+    int                 nScaleRepeat = 0;
+    ScaleParams        *pasScaleParams = NULL;
+    int                 bHasUsedExplictScaleBand = FALSE;
+    int                 nExponentRepeat = 0;
+    double             *padfExponent = NULL;
+    int                 bHasUsedExplictExponentBand = FALSE;
+
     double              dfULX, dfULY, dfLRX, dfLRY;
     char                **papszMetadataOptions = NULL;
     char                *pszOutputSRS = NULL;
@@ -515,28 +530,90 @@ static int ProxyMain( int argc, char ** argv )
             papszCreateOptions = CSLAddString( papszCreateOptions, argv[++i] );
         }   
 
-        else if( EQUAL(argv[i],"-scale") )
+        else if( EQUAL(argv[i],"-scale") || EQUALN(argv[i],"-scale_", 7) )
         {
-            bScale = TRUE;
+            int nIndex = 0;
+            if( EQUALN(argv[i],"-scale_", 7) )
+            {
+                if( !bHasUsedExplictScaleBand && nScaleRepeat != 0 )
+                    Usage("Cannot mix -scale and -scale_XX syntax");
+                bHasUsedExplictScaleBand = TRUE;
+                nIndex = atoi(argv[i] + 7);
+                if( nIndex <= 0 || nIndex > 65535 )
+                    Usage(CPLSPrintf( "Invalid parameter name: %s", argv[i] ));
+                nIndex --;
+            }
+            else
+            {
+                if( bHasUsedExplictScaleBand )
+                    Usage("Cannot mix -scale and -scale_XX syntax");
+                nIndex = nScaleRepeat;
+            }
+
+            if( nIndex >= nScaleRepeat )
+            {
+                pasScaleParams = (ScaleParams*)CPLRealloc(pasScaleParams,
+                    (nIndex + 1) * sizeof(ScaleParams));
+                if( nIndex > nScaleRepeat )
+                    memset(pasScaleParams + nScaleRepeat, 0,
+                        sizeof(ScaleParams) * (nIndex - nScaleRepeat));
+                nScaleRepeat = nIndex + 1;
+            }
+            pasScaleParams[nIndex].bScale = TRUE;
             if( i < argc-2 && ArgIsNumeric(argv[i+1]) )
             {
-                bHaveScaleSrc = TRUE;
-                dfScaleSrcMin = CPLAtofM(argv[i+1]);
-                dfScaleSrcMax = CPLAtofM(argv[i+2]);
+                pasScaleParams[nIndex].bHaveScaleSrc = TRUE;
+                pasScaleParams[nIndex].dfScaleSrcMin = CPLAtofM(argv[i+1]);
+                pasScaleParams[nIndex].dfScaleSrcMax = CPLAtofM(argv[i+2]);
                 i += 2;
             }
-            if( i < argc-2 && bHaveScaleSrc && ArgIsNumeric(argv[i+1]) )
+            if( i < argc-2 && pasScaleParams[nIndex].bHaveScaleSrc && ArgIsNumeric(argv[i+1]) )
             {
-                dfScaleDstMin = CPLAtofM(argv[i+1]);
-                dfScaleDstMax = CPLAtofM(argv[i+2]);
+                pasScaleParams[nIndex].dfScaleDstMin = CPLAtofM(argv[i+1]);
+                pasScaleParams[nIndex].dfScaleDstMax = CPLAtofM(argv[i+2]);
                 i += 2;
             }
             else
             {
-                dfScaleDstMin = 0.0;
-                dfScaleDstMax = 255.999;
+                pasScaleParams[nIndex].dfScaleDstMin = 0.0;
+                pasScaleParams[nIndex].dfScaleDstMax = 255.999;
             }
-        }   
+        }
+
+        else if( EQUAL(argv[i],"-exponent") || EQUALN(argv[i],"-exponent_",10) )
+        {
+            CHECK_HAS_ENOUGH_ADDITIONAL_ARGS(1);
+
+            int nIndex = 0;
+            if( EQUALN(argv[i],"-exponent_", 10) )
+            {
+                if( !bHasUsedExplictExponentBand && nExponentRepeat != 0 )
+                    Usage("Cannot mix -exponent and -exponent_XX syntax");
+                bHasUsedExplictExponentBand = TRUE;
+                nIndex = atoi(argv[i] + 10);
+                if( nIndex <= 0 || nIndex > 65535 )
+                    Usage(CPLSPrintf( "Invalid parameter name: %s", argv[i] ));
+                nIndex --;
+            }
+            else
+            {
+                if( bHasUsedExplictExponentBand )
+                    Usage("Cannot mix -exponent and -exponent_XX syntax");
+                nIndex = nExponentRepeat;
+            }
+
+            if( nIndex >= nExponentRepeat )
+            {
+                padfExponent = (double*)CPLRealloc(padfExponent,
+                    (nIndex + 1) * sizeof(double));
+                if( nIndex > nExponentRepeat )
+                    memset(padfExponent + nExponentRepeat, 0,
+                        sizeof(double) * (nIndex - nExponentRepeat));
+                nExponentRepeat = nIndex + 1;
+            }
+            double dfExponent = CPLAtofM(argv[++i]);
+            padfExponent[nIndex] = dfExponent;
+        }
 
         else if( EQUAL(argv[i], "-unscale") )
         {
@@ -633,7 +710,7 @@ static int ProxyMain( int argc, char ** argv )
 
         else if( argv[i][0] == '-' )
         {
-            Usage(CPLSPrintf("Unkown option name '%s'", argv[i]));
+            Usage(CPLSPrintf("Unknown option name '%s'", argv[i]));
         }
         else if( pszSource == NULL )
         {
@@ -790,6 +867,21 @@ static int ProxyMain( int argc, char ** argv )
             bDefBands = FALSE;
     }
 
+    if( nScaleRepeat > nBandCount )
+    {
+        if( !bHasUsedExplictScaleBand )
+            Usage("-scale has been specified more times than the number of output bands");
+        else
+            Usage("-scale_XX has been specified with XX greater than the number of output bands");
+    }
+
+    if( nExponentRepeat > nBandCount )
+    {
+        if( !bHasUsedExplictExponentBand )
+            Usage("-exponent has been specified more times than the number of output bands");
+        else
+            Usage("-exponent_XX has been specified with XX greater than the number of output bands");
+    }
 /* -------------------------------------------------------------------- */
 /*      Compute the source window from the projected source window      */
 /*      if the projected coordinates were provided.  Note that the      */
@@ -925,7 +1017,7 @@ static int ProxyMain( int argc, char ** argv )
         && pszOXSize == NULL && pszOYSize == NULL );
 
     if( eOutputType == GDT_Unknown 
-        && !bScale && !bUnscale
+        && nScaleRepeat == 0 && !bUnscale
         && CSLCount(papszMetadataOptions) == 0 && bDefBands 
         && eMaskMode == MASK_AUTO
         && bSpatialArrangementPreserved
@@ -1080,7 +1172,7 @@ static int ProxyMain( int argc, char ** argv )
 /*      Transfer generally applicable metadata.                         */
 /* -------------------------------------------------------------------- */
     char** papszMetadata = CSLDuplicate(((GDALDataset*)hDataset)->GetMetadata());
-    if ( bScale || bUnscale || eOutputType != GDT_Unknown )
+    if ( nScaleRepeat > 0 || bUnscale || eOutputType != GDT_Unknown )
     {
         /* Remove TIFFTAG_MINSAMPLEVALUE and TIFFTAG_MAXSAMPLEVALUE */
         /* if the data range may change because of options */
@@ -1172,7 +1264,7 @@ static int ProxyMain( int argc, char ** argv )
     }
 
     int bFilterOutStatsMetadata =
-        (bScale || bUnscale || !bSpatialArrangementPreserved || nRGBExpand != 0);
+        (nScaleRepeat > 0 || bUnscale || !bSpatialArrangementPreserved || nRGBExpand != 0);
 
 /* ==================================================================== */
 /*      Process all bands.                                              */
@@ -1215,7 +1307,11 @@ static int ProxyMain( int argc, char ** argv )
         poVRTBand = (VRTSourcedRasterBand *) poVDS->GetRasterBand( i+1 );
         if (nSrcBand < 0)
         {
-            poVRTBand->AddMaskBandSource(poSrcBand);
+            poVRTBand->AddMaskBandSource(poSrcBand,
+                                         anSrcWin[0], anSrcWin[1],
+                                         anSrcWin[2], anSrcWin[3],
+                                         anDstWin[0], anDstWin[1],
+                                         anDstWin[2], anDstWin[3]);
             continue;
         }
 
@@ -1223,6 +1319,46 @@ static int ProxyMain( int argc, char ** argv )
 /*      Do we need to collect scaling information?                      */
 /* -------------------------------------------------------------------- */
         double dfScale=1.0, dfOffset=0.0;
+        int    bScale = FALSE, bHaveScaleSrc = FALSE;
+        double dfScaleSrcMin = 0.0, dfScaleSrcMax = 0.0;
+        double dfScaleDstMin = 0.0, dfScaleDstMax = 0.0;
+        int    bExponentScaling = FALSE;
+        double dfExponent = 0.0;
+
+        if( i < nScaleRepeat && pasScaleParams[i].bScale )
+        {
+            bScale = pasScaleParams[i].bScale;
+            bHaveScaleSrc = pasScaleParams[i].bHaveScaleSrc;
+            dfScaleSrcMin = pasScaleParams[i].dfScaleSrcMin;
+            dfScaleSrcMax = pasScaleParams[i].dfScaleSrcMax;
+            dfScaleDstMin = pasScaleParams[i].dfScaleDstMin;
+            dfScaleDstMax = pasScaleParams[i].dfScaleDstMax;
+        }
+        else if( nScaleRepeat == 1 && !bHasUsedExplictScaleBand )
+        {
+            bScale = pasScaleParams[0].bScale;
+            bHaveScaleSrc = pasScaleParams[0].bHaveScaleSrc;
+            dfScaleSrcMin = pasScaleParams[0].dfScaleSrcMin;
+            dfScaleSrcMax = pasScaleParams[0].dfScaleSrcMax;
+            dfScaleDstMin = pasScaleParams[0].dfScaleDstMin;
+            dfScaleDstMax = pasScaleParams[0].dfScaleDstMax;
+        }
+
+        if( i < nExponentRepeat && padfExponent[i] != 0.0 )
+        {
+            bExponentScaling = TRUE;
+            dfExponent = padfExponent[i];
+        }
+        else if( nExponentRepeat == 1 && !bHasUsedExplictExponentBand )
+        {
+            bExponentScaling = TRUE;
+            dfExponent = padfExponent[0];
+        }
+
+        if( bExponentScaling && !bScale )
+        {
+            Usage(CPLSPrintf("For band %d, -scale should be specified when -exponent is specified.", i + 1));
+        }
 
         if( bScale && !bHaveScaleSrc )
         {
@@ -1239,9 +1375,12 @@ static int ProxyMain( int argc, char ** argv )
             if( dfScaleDstMax == dfScaleDstMin )
                 dfScaleDstMax += 0.1;
 
-            dfScale = (dfScaleDstMax - dfScaleDstMin) 
-                / (dfScaleSrcMax - dfScaleSrcMin);
-            dfOffset = -1 * dfScaleSrcMin * dfScale + dfScaleDstMin;
+            if( !bExponentScaling )
+            {
+                dfScale = (dfScaleDstMax - dfScaleDstMin) 
+                    / (dfScaleSrcMax - dfScaleSrcMin);
+                dfOffset = -1 * dfScaleSrcMin * dfScale + dfScaleDstMin;
+            }
         }
 
         if( bUnscale )
@@ -1256,14 +1395,35 @@ static int ProxyMain( int argc, char ** argv )
 /* -------------------------------------------------------------------- */
         if( bUnscale || bScale || (nRGBExpand != 0 && i < nRGBExpand) )
         {
-            poVRTBand->AddComplexSource( poSrcBand,
-                                         anSrcWin[0], anSrcWin[1],
-                                         anSrcWin[2], anSrcWin[3],
-                                         anDstWin[0], anDstWin[1],
-                                         anDstWin[2], anDstWin[3],
-                                         dfOffset, dfScale,
-                                         VRT_NODATA_UNSET,
-                                         nComponent );
+            VRTComplexSource* poSource = new VRTComplexSource();
+            poVRTBand->ConfigureSource( poSource,
+                                        poSrcBand,
+                                        FALSE,
+                                        anSrcWin[0], anSrcWin[1],
+                                        anSrcWin[2], anSrcWin[3],
+                                        anDstWin[0], anDstWin[1],
+                                        anDstWin[2], anDstWin[3] );
+
+        /* -------------------------------------------------------------------- */
+        /*      Set complex parameters.                                         */
+        /* -------------------------------------------------------------------- */
+
+            if( dfOffset != 0.0 || dfScale != 1.0 )
+            {
+                poSource->SetLinearScaling(dfOffset, dfScale);
+            }
+            else if( bExponentScaling )
+            {
+                poSource->SetPowerScaling(dfExponent,
+                                          dfScaleSrcMin,
+                                          dfScaleSrcMax,
+                                          dfScaleDstMin,
+                                          dfScaleDstMax);
+            }
+
+            poSource->SetColorTableComponent(nComponent);
+
+            poVRTBand->AddSource( poSource );
         }
         else
             poVRTBand->AddSimpleSource( poSrcBand,
@@ -1440,6 +1600,8 @@ static int ProxyMain( int argc, char ** argv )
     GDALClose( hDataset );
 
     CPLFree( panBandList );
+    CPLFree( pasScaleParams );
+    CPLFree( padfExponent );
     
     CPLFree( pszOutputSRS );
 

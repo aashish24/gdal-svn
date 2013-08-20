@@ -1488,7 +1488,7 @@ OGRGeometry *OGRGeometryFactory::createFromGML( const char *pszData )
 /************************************************************************/
 
 OGRGeometry *
-OGRGeometryFactory::createFromGEOS( GEOSGeom geosGeom )
+OGRGeometryFactory::createFromGEOS( GEOSContextHandle_t hGEOSCtxt, GEOSGeom geosGeom )
 
 {
 #ifndef HAVE_GEOS 
@@ -1504,19 +1504,19 @@ OGRGeometryFactory::createFromGEOS( GEOSGeom geosGeom )
     OGRGeometry *poGeometry = NULL;
 
     /* Special case as POINT EMPTY cannot be translated to WKB */
-    if (GEOSGeomTypeId(geosGeom) == GEOS_POINT &&
-        GEOSisEmpty(geosGeom))
+    if (GEOSGeomTypeId_r(hGEOSCtxt, geosGeom) == GEOS_POINT &&
+        GEOSisEmpty_r(hGEOSCtxt, geosGeom))
         return new OGRPoint();
 
 #if GEOS_VERSION_MAJOR > 3 || (GEOS_VERSION_MAJOR == 3 && GEOS_VERSION_MINOR >= 3)
     /* GEOSGeom_getCoordinateDimension only available in GEOS 3.3.0 (unreleased at time of writing) */
-    int nCoordDim = GEOSGeom_getCoordinateDimension(geosGeom);
-    GEOSWKBWriter* wkbwriter = GEOSWKBWriter_create();
-    GEOSWKBWriter_setOutputDimension(wkbwriter, nCoordDim);
-    pabyBuf = GEOSWKBWriter_write( wkbwriter, geosGeom, &nSize );
-    GEOSWKBWriter_destroy(wkbwriter);
+    int nCoordDim = GEOSGeom_getCoordinateDimension_r(hGEOSCtxt, geosGeom);
+    GEOSWKBWriter* wkbwriter = GEOSWKBWriter_create_r(hGEOSCtxt);
+    GEOSWKBWriter_setOutputDimension_r(hGEOSCtxt, wkbwriter, nCoordDim);
+    pabyBuf = GEOSWKBWriter_write_r(hGEOSCtxt, wkbwriter, geosGeom, &nSize );
+    GEOSWKBWriter_destroy_r(hGEOSCtxt, wkbwriter);
 #else
-    pabyBuf = GEOSGeomToWKB_buf( geosGeom, &nSize );
+    pabyBuf = GEOSGeomToWKB_buf_r( hGEOSCtxt, geosGeom, &nSize );
 #endif
     if( pabyBuf == NULL || nSize == 0 )
     {
@@ -1534,7 +1534,7 @@ OGRGeometryFactory::createFromGEOS( GEOSGeom geosGeom )
     {
         /* Since GEOS 3.1.1, so we test 3.2.0 */
 #if GEOS_CAPI_VERSION_MAJOR >= 2 || (GEOS_CAPI_VERSION_MAJOR == 1 && GEOS_CAPI_VERSION_MINOR >= 6)
-        GEOSFree( pabyBuf );
+        GEOSFree_r( hGEOSCtxt, pabyBuf );
 #else
         free( pabyBuf );
 #endif
@@ -1543,18 +1543,6 @@ OGRGeometryFactory::createFromGEOS( GEOSGeom geosGeom )
     return poGeometry;
 
 #endif /* HAVE_GEOS */
-}
-
-/************************************************************************/
-/*                       getGEOSGeometryFactory()                       */
-/************************************************************************/
-
-void *OGRGeometryFactory::getGEOSGeometryFactory() 
-
-{
-    // XXX - mloskot - What to do with this call
-    // after GEOS C++ API has been stripped?
-    return NULL;
 }
 
 /************************************************************************/
@@ -2543,6 +2531,11 @@ OGR_G_ApproximateArcAngles(
  * consumed and a new one returned (or potentially the same one).
  *
  * @param poGeom the input geometry - ownership is passed to the method.
+ * @param bOnlyInOrder flag that, if set to FALSE, indicate that the order of
+ *                     points in a linestring might be reversed if it enables
+ *                     to match the extremity of another linestring. If set
+ *                     to TRUE, the start of a linestring must match the end
+ *                     of another linestring.
  * @return new geometry.
  */
 

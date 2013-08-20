@@ -105,7 +105,7 @@ public:
     void           Initialize();
     char          *Unparse( swq_field_list *, char chColumnQuote );
     void           Dump( FILE *fp, int depth );
-    swq_field_type Check( swq_field_list * );
+    swq_field_type Check( swq_field_list *, int bAllowFieldsInSecondaryTables );
     swq_expr_node* Evaluate( swq_field_fetcher pfnFetcher, 
                              void *record );
 
@@ -130,26 +130,17 @@ public:
     double      float_value;
 };
 
-class swq_operation {
-public:
-    swq_operation() {}
-    ~swq_operation() {}
-
+typedef struct {
+    const char*      pszName;
     swq_op           eOperation;
-    CPLString        osName;
     swq_op_evaluator pfnEvaluator;
     swq_op_checker   pfnChecker;
-};
+} swq_operation;
 
 class swq_op_registrar {
 public:
     static const swq_operation *GetOperator( const char * );
     static const swq_operation *GetOperator( swq_op eOperation );
-    static void  Initialize();
-    static void  DeInitialize();
-    static void  AddOperator( const char *pszName, swq_op eOpCode,
-                              swq_op_evaluator pfnEvaluator = NULL,
-                              swq_op_checker pfnChecker = NULL );
 };
 
 typedef struct {
@@ -177,6 +168,7 @@ public:
     int        nStartToken;
     const char *pszInput;
     const char *pszNext;
+    const char *pszLastValid;
 
     swq_expr_node *poRoot;
 
@@ -189,6 +181,7 @@ public:
 */
 int swqparse( swq_parse_context *context );
 int swqlex( swq_expr_node **ppNode, swq_parse_context *context );
+void swqerror( swq_parse_context *context, const char *msg );
 
 int swq_identify_field( const char *token, swq_field_list *field_list,
                         swq_field_type *this_type, int *table_id );

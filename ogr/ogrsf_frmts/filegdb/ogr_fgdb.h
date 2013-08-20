@@ -32,6 +32,7 @@
 
 #include <vector>
 #include "ogrsf_frmts.h"
+#include "ogrmutexedlayer.h"
 
 /* GDAL string utilities */
 #include "cpl_string.h"
@@ -58,6 +59,8 @@
 
 /* The ESRI FGDB API namespace */
 using namespace FileGDBAPI;
+
+class FGdbDriver;
 
 /************************************************************************/
 /*                           FGdbBaseLayer                              */
@@ -226,11 +229,12 @@ protected:
 /************************************************************************/
 /*                           FGdbDataSource                            */
 /************************************************************************/
+
 class FGdbDataSource : public OGRDataSource
 {
 
 public:
-  FGdbDataSource();
+  FGdbDataSource(FGdbDriver* poDriver);
   virtual ~FGdbDataSource();
 
   int         Open(Geodatabase* pGeodatabase, const char *, int );
@@ -252,6 +256,7 @@ public:
   int TestCapability( const char * );
 
   Geodatabase* GetGDB() { return m_pGeodatabase; }
+  bool         GetUpdate() { return m_bUpdate; }
 
   /*
   protected:
@@ -264,9 +269,11 @@ protected:
   bool OpenFGDBTables(const std::wstring &type,
                       const std::vector<std::wstring> &layers);
 
+  FGdbDriver* m_poDriver;
   char* m_pszName;
-  std::vector <FGdbLayer*> m_layers;
+  std::vector <OGRMutexedLayer*> m_layers;
   Geodatabase* m_pGeodatabase;
+  bool m_bUpdate;
 
 };
 
@@ -274,8 +281,20 @@ protected:
 /*                              FGdbDriver                                */
 /************************************************************************/
 
+class FGdbDatabaseConnection
+{
+public:
+    FGdbDatabaseConnection(Geodatabase* pGeodatabase) :
+        m_pGeodatabase(pGeodatabase), m_nRefCount(1) {}
+
+    Geodatabase* m_pGeodatabase;
+    int          m_nRefCount;
+};
+
 class FGdbDriver : public OGRSFDriver
 {
+  std::map<CPLString, FGdbDatabaseConnection*> oMapConnections;
+  void* hMutex;
 
 public:
   FGdbDriver();
@@ -287,7 +306,8 @@ public:
   virtual OGRDataSource *CreateDataSource( const char *pszName, char ** = NULL);
   virtual OGRErr DeleteDataSource( const char *pszDataSource );
 
-  void OpenGeodatabase(std::string, Geodatabase** ppGeodatabase);
+  void Release(const char* pszName);
+  void* GetMutex() { return hMutex; }
 
 private:
 

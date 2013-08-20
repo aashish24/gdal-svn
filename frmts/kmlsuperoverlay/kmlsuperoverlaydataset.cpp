@@ -971,9 +971,12 @@ int KmlSuperOverlayReadDataset::CloseDependentDatasets()
     while( psCur != NULL )
     {
         LinkedDataset* psNext = psCur->psNext;
-        if( psCur->poDS->nRefCount == 1 )
-            bRet = TRUE;
-        GDALClose(psCur->poDS);
+        if( psCur->poDS != NULL )
+        {
+            if( psCur->poDS->nRefCount == 1 )
+                bRet = TRUE;
+            GDALClose(psCur->poDS);
+        }
         delete psCur;
         psCur = psNext;
     }
@@ -1254,6 +1257,8 @@ CPLErr KmlSuperOverlayReadDataset::IRasterIO( GDALRWFlag eRWFlag,
                                 KmlSuperOverlayReadDataset::Open(osSubFilename, poRoot);
                             if( poSubImageDS )
                                 poSubImageDS->MarkAsShared();
+                            else
+                                CPLDebug("KMLSuperOverlay", "Cannt open %s", osSubFilename.c_str());
                             psLink->osSubFilename = osSubFilename;
                             psLink->poDS = poSubImageDS;
                             psLink->psPrev = NULL;
@@ -1464,15 +1469,12 @@ CPLErr KmlSuperOverlayReadDataset::IRasterIO( GDALRWFlag eRWFlag,
 /************************************************************************/
 
 static
-int KmlSuperOverlayFindRegionStart(CPLXMLNode* psNode,
+int KmlSuperOverlayFindRegionStartInternal(CPLXMLNode* psNode,
                                    CPLXMLNode** ppsRegion,
                                    CPLXMLNode** ppsDocument,
                                    CPLXMLNode** ppsGroundOverlay,
                                    CPLXMLNode** ppsLink)
 {
-    if( psNode == NULL || psNode->eType != CXT_Element )
-        return FALSE;
-
     CPLXMLNode* psRegion = NULL;
     CPLXMLNode* psLink = NULL;
     CPLXMLNode* psGroundOverlay = NULL;
@@ -1499,20 +1501,7 @@ int KmlSuperOverlayFindRegionStart(CPLXMLNode* psNode,
     {
         if( psIter->eType == CXT_Element )
         {
-            if( KmlSuperOverlayFindRegionStart(psIter, ppsRegion, ppsDocument,
-                                               ppsGroundOverlay, ppsLink) )
-                return TRUE;
-        }
-
-        psIter = psIter->psNext;
-    }
-
-    psIter = psNode->psNext;
-    while(psIter != NULL)
-    {
-        if( psIter->eType == CXT_Element )
-        {
-            if( KmlSuperOverlayFindRegionStart(psIter, ppsRegion, ppsDocument,
+            if( KmlSuperOverlayFindRegionStartInternal(psIter, ppsRegion, ppsDocument,
                                                ppsGroundOverlay, ppsLink) )
                 return TRUE;
         }
@@ -1523,6 +1512,29 @@ int KmlSuperOverlayFindRegionStart(CPLXMLNode* psNode,
     return FALSE;
 }
 
+
+static
+int KmlSuperOverlayFindRegionStart(CPLXMLNode* psNode,
+                                   CPLXMLNode** ppsRegion,
+                                   CPLXMLNode** ppsDocument,
+                                   CPLXMLNode** ppsGroundOverlay,
+                                   CPLXMLNode** ppsLink)
+{
+    CPLXMLNode* psIter = psNode;
+    while(psIter != NULL)
+    {
+        if( psIter->eType == CXT_Element )
+        {
+            if( KmlSuperOverlayFindRegionStartInternal(psIter, ppsRegion, ppsDocument,
+                                                       ppsGroundOverlay, ppsLink) )
+                return TRUE;
+        }
+
+        psIter = psIter->psNext;
+    }
+
+    return FALSE;
+}
 
 /************************************************************************/
 /*                             Identify()                               */
@@ -1559,7 +1571,7 @@ GDALDataset *KmlSuperOverlayReadDataset::Open(GDALOpenInfo * poOpenInfo)
 /*                         KmlSuperOverlayLoadIcon()                    */
 /************************************************************************/
 
-#define BUFFER_SIZE 100000
+#define BUFFER_SIZE 1000000
 
 static
 GDALDataset* KmlSuperOverlayLoadIcon(const char* pszBaseFilename, const char* pszIcon)

@@ -128,6 +128,9 @@ class OGRGMLDataSource : public OGRDataSource
     int                 bIsLongSRSRequired;
     int                 bWriteSpaceIndentation;
 
+    OGRSpatialReference* poWriteGlobalSRS;
+    int                 bWriteGlobalSRS;
+
     // input related parameters.
     CPLString           osFilename;
     CPLString           osXSDFilename;
@@ -141,7 +144,7 @@ class OGRGMLDataSource : public OGRDataSource
     int                 bExposeFid;
     int                 bIsWFS;
 
-    OGRSpatialReference* poGlobalSRS;
+    int                 bUseGlobalSRSName;
 
     int                 m_bInvertAxisOrderIfLatLong;
     int                 m_bConsiderEPSGAsURN;
@@ -200,6 +203,8 @@ class OGRGMLDataSource : public OGRDataSource
     void                SetLastReadLayer(OGRGMLLayer* poLayer) { poLastReadLayer = poLayer; }
 
     const char         *GetAppPrefix();
+    int                 RemoveAppPrefix();
+    int                 WriteFeatureBoundedBy();
 
     virtual OGRLayer *          ExecuteSQL( const char *pszSQLCommand,
                                             OGRGeometry *poSpatialFilter,

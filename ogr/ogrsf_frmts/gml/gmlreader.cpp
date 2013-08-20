@@ -34,6 +34,7 @@
 #include "gmlreaderp.h"
 #include "cpl_conv.h"
 #include <map>
+#include "cpl_multiproc.h"
 
 #define SUPPORT_GEOMETRY
 
@@ -98,8 +99,9 @@ IGMLReader *CreateGMLReader(int bUseExpatParserPreferably,
 
 #endif
 
-int GMLReader::m_bXercesInitialized = FALSE;
+int GMLReader::m_bXercesInitialized = -1;
 int GMLReader::m_nInstanceCount = 0;
+void *GMLReader::hMutex = NULL;
 
 /************************************************************************/
 /*                             GMLReader()                              */
@@ -128,7 +130,6 @@ GMLReader::GMLReader(int bUseExpatParserPreferably,
         CPLDebug("GML", "Using Xerces reader");
 #endif
 
-    m_nInstanceCount++;
     m_nClassCount = 0;
     m_papoClass = NULL;
 
@@ -175,6 +176,8 @@ GMLReader::GMLReader(int bUseExpatParserPreferably,
 	
     /* Must be in synced in OGR_G_CreateFromGML(), OGRGMLLayer::OGRGMLLayer() and GMLReader::GMLReader() */
     m_bFaceHoleNegative = CSLTestBoolean(CPLGetConfigOption("GML_FACE_HOLE_NEGATIVE", "NO"));
+
+    m_bSetWidthFlag = TRUE;
 }
 
 /************************************************************************/
@@ -192,12 +195,15 @@ GMLReader::~GMLReader()
 
     delete m_poRecycledState;
 
-    --m_nInstanceCount;
 #ifdef HAVE_XERCES
-    if( m_nInstanceCount == 0 && m_bXercesInitialized )
+    {
+    CPLMutexHolderD(&hMutex);
+    --m_nInstanceCount;
+    if( m_nInstanceCount == 0 && m_bXercesInitialized > 0 )
     {
         XMLPlatformUtils::Terminate();
         m_bXercesInitialized = FALSE;
+    }
     }
 #endif
 #ifdef HAVE_EXPAT
@@ -290,7 +296,10 @@ int GMLReader::SetupParser()
 
 int GMLReader::SetupParserXerces()
 {
-    if( !m_bXercesInitialized )
+    {
+    CPLMutexHolderD(&hMutex);
+    m_nInstanceCount++;
+    if( m_bXercesInitialized < 0 )
     {
         try
         {
@@ -302,9 +311,13 @@ int GMLReader::SetupParserXerces()
             CPLError( CE_Warning, CPLE_AppDefined,
                       "Exception initializing Xerces based GML reader.\n%s", 
                       tr_strdup(toCatch.getMessage()) );
+            m_bXercesInitialized = FALSE;
             return FALSE;
         }
         m_bXercesInitialized = TRUE;
+    }
+    if( !m_bXercesInitialized )
+        return FALSE;
     }
 
     // Cleanup any old parser.
@@ -708,13 +721,19 @@ void GMLReader::PushFeature( const char *pszElement,
 /*      GML feature element?                                            */
 /************************************************************************/
 
-int GMLReader::GetFeatureElementIndex( const char *pszElement, int nElementLength )
+int GMLReader::GetFeatureElementIndex( const char *pszElement, int nElementLength,
+                                       GMLAppSchemaType eAppSchemaType )
 
 {
     const char *pszLast = m_poState->GetLastComponent();
     size_t      nLenLast = m_poState->GetLastComponentLen();
 
-    if( (nLenLast >= 6 && EQUAL(pszLast+nLenLast-6,"member")) ||
+    if( eAppSchemaType == APPSCHEMA_MTKGML )
+    {
+        if( m_poState->m_nPathLength != 1 )
+            return -1;
+    }
+    else if( (nLenLast >= 6 && EQUAL(pszLast+nLenLast-6,"member")) ||
         (nLenLast >= 7 && EQUAL(pszLast+nLenLast-7,"members")) )
     {
         /* Default feature name */
@@ -969,7 +988,8 @@ void GMLReader::ClearClasses()
 
 void GMLReader::SetFeaturePropertyDirectly( const char *pszElement, 
                                             char *pszValue,
-                                            int iPropertyIn )
+                                            int iPropertyIn,
+                                            GMLPropertyType eType )
 
 {
     GMLFeature *poFeature = GetState()->m_poFeature;
@@ -1027,6 +1047,8 @@ void GMLReader::SetFeaturePropertyDirectly( const char *pszElement,
 
             if( EQUAL(CPLGetConfigOption( "GML_FIELDTYPES", ""), "ALWAYS_STRING") )
                 poPDefn->SetType( GMLPT_String );
+            else if( eType != GMLPT_Untyped )
+                poPDefn->SetType( eType );
 
             if (poClass->AddProperty( poPDefn ) < 0)
             {
@@ -1048,7 +1070,7 @@ void GMLReader::SetFeaturePropertyDirectly( const char *pszElement,
     if( !poClass->IsSchemaLocked() )
     {
         poClass->GetProperty(iProperty)->AnalysePropertyValue(
-                             poFeature->GetProperty(iProperty));
+                             poFeature->GetProperty(iProperty), m_bSetWidthFlag );
     }
 }
 
@@ -1106,7 +1128,7 @@ int GMLReader::LoadClasses( const char *pszFile )
 
     VSIFCloseL( fp );
 
-    if( strstr( pszWholeText, "<GMLFeatureClassList>" ) == NULL )
+    if( strstr( pszWholeText, "<GMLFeatureClassList" ) == NULL )
     {
         VSIFree( pszWholeText );
         CPLError( CE_Failure, CPLE_AppDefined, 
@@ -1236,7 +1258,7 @@ int GMLReader::SaveClasses( const char *pszFile )
 /*      looking for schema information.                                 */
 /************************************************************************/
 
-int GMLReader::PrescanForSchema( int bGetExtents )
+int GMLReader::PrescanForSchema( int bGetExtents, int bAnalyzeSRSPerFeature )
 
 {
     GMLFeature  *poFeature;
@@ -1302,12 +1324,15 @@ int GMLReader::PrescanForSchema( int bGetExtents )
                 OGRwkbGeometryType eGType = (OGRwkbGeometryType) 
                     poClass->GetGeometryType();
 
-                const char* pszSRSName = GML_ExtractSrsNameFromGeometry(papsGeometry,
-                                                                        osWork,
-                                                                        m_bConsiderEPSGAsURN);
-                if (pszSRSName != NULL)
-                    m_bCanUseGlobalSRSName = FALSE;
-                poClass->MergeSRSName(pszSRSName);
+                if( bAnalyzeSRSPerFeature )
+                {
+                    const char* pszSRSName = GML_ExtractSrsNameFromGeometry(papsGeometry,
+                                                                            osWork,
+                                                                            m_bConsiderEPSGAsURN);
+                    if (pszSRSName != NULL)
+                        m_bCanUseGlobalSRSName = FALSE;
+                    poClass->MergeSRSName(pszSRSName);
+                }
 
                 // Merge geometry type into layer.
                 if( poClass->GetFeatureCount() == 1 && eGType == wkbUnknown )
@@ -1356,35 +1381,43 @@ int GMLReader::PrescanForSchema( int bGetExtents )
 
         if (m_bCanUseGlobalSRSName)
             pszSRSName = m_pszGlobalSRSName;
-        
-        if (m_bInvertAxisOrderIfLatLong && GML_IsSRSLatLongOrder(pszSRSName))
+
+        OGRSpatialReference oSRS;
+        if (m_bInvertAxisOrderIfLatLong && GML_IsSRSLatLongOrder(pszSRSName) &&
+            oSRS.SetFromUserInput(pszSRSName) == OGRERR_NONE)
         {
-            OGRSpatialReference oSRS;
-            if (oSRS.SetFromUserInput(pszSRSName) == OGRERR_NONE)
+            OGR_SRSNode *poGEOGCS = oSRS.GetAttrNode( "GEOGCS" );
+            if( poGEOGCS != NULL )
+                poGEOGCS->StripNodes( "AXIS" );
+
+            OGR_SRSNode *poPROJCS = oSRS.GetAttrNode( "PROJCS" );
+            if (poPROJCS != NULL && oSRS.EPSGTreatsAsNorthingEasting())
+                poPROJCS->StripNodes( "AXIS" );
+
+            char* pszWKT = NULL;
+            if (oSRS.exportToWkt(&pszWKT) == OGRERR_NONE)
+                poClass->SetSRSName(pszWKT);
+            CPLFree(pszWKT);
+
+            /* So when we have computed the extent, we didn't know yet */
+            /* the SRS to use. Now we know it, we have to fix the extent */
+            /* order */
+            if (m_bCanUseGlobalSRSName)
             {
-                OGR_SRSNode *poGEOGCS = oSRS.GetAttrNode( "GEOGCS" );
-                if( poGEOGCS != NULL )
-                    poGEOGCS->StripNodes( "AXIS" );
-
-                OGR_SRSNode *poPROJCS = oSRS.GetAttrNode( "PROJCS" );
-                if (poPROJCS != NULL && oSRS.EPSGTreatsAsNorthingEasting())
-                    poPROJCS->StripNodes( "AXIS" );
-
-                char* pszWKT = NULL;
-                if (oSRS.exportToWkt(&pszWKT) == OGRERR_NONE)
-                    poClass->SetSRSName(pszWKT);
-                CPLFree(pszWKT);
-
-                /* So when we have computed the extent, we didn't know yet */
-                /* the SRS to use. Now we know it, we have to fix the extent */
-                /* order */
-                if (m_bCanUseGlobalSRSName)
-                {
-                    double  dfXMin, dfXMax, dfYMin, dfYMax;
-                    if( poClass->GetExtents(&dfXMin, &dfXMax, &dfYMin, &dfYMax) )
-                        poClass->SetExtents( dfYMin, dfYMax, dfXMin, dfXMax );
-                }
+                double  dfXMin, dfXMax, dfYMin, dfYMax;
+                if( poClass->GetExtents(&dfXMin, &dfXMax, &dfYMin, &dfYMax) )
+                    poClass->SetExtents( dfYMin, dfYMax, dfXMin, dfXMax );
             }
+        }
+        else if( !bAnalyzeSRSPerFeature &&
+                 pszSRSName != NULL &&
+                 poClass->GetSRSName() == NULL &&
+                 oSRS.SetFromUserInput(pszSRSName) == OGRERR_NONE )
+        {
+            char* pszWKT = NULL;
+            if (oSRS.exportToWkt(&pszWKT) == OGRERR_NONE)
+                poClass->SetSRSName(pszWKT);
+            CPLFree(pszWKT);
         }
 
         std::map<GMLFeatureClass*, int>::iterator oIter =
@@ -1398,7 +1431,7 @@ int GMLReader::PrescanForSchema( int bGetExtents )
 
     CleanupParser();
 
-    return m_nClassCount > 0;
+    return TRUE;
 }
 
 /************************************************************************/
@@ -1420,7 +1453,15 @@ void GMLReader::SetGlobalSRSName( const char* pszGlobalSRSName )
 {
     if (m_pszGlobalSRSName == NULL && pszGlobalSRSName != NULL)
     {
-        if (strncmp(pszGlobalSRSName, "EPSG:", 5) == 0 &&
+        const char* pszVertCS_EPSG;
+        if( strncmp(pszGlobalSRSName, "EPSG:", 5) == 0 &&
+            (pszVertCS_EPSG = strstr(pszGlobalSRSName, ", EPSG:")) != NULL )
+        {
+            m_pszGlobalSRSName = CPLStrdup(CPLSPrintf("EPSG:%d+%d",
+                    atoi(pszGlobalSRSName + 5),
+                    atoi(pszVertCS_EPSG + 7)));
+        }
+        else if (strncmp(pszGlobalSRSName, "EPSG:", 5) == 0 &&
             m_bConsiderEPSGAsURN)
         {
             m_pszGlobalSRSName = CPLStrdup(CPLSPrintf("urn:ogc:def:crs:EPSG::%s",

@@ -65,6 +65,15 @@ OGRDataSource *OGRMDBDriver::Open( const char * pszFilename,
 {
     OGRMDBDataSource     *poDS;
 
+    if( EQUALN(pszFilename, "PGEO:", strlen("PGEO:")) )
+        return NULL;
+
+    if( EQUALN(pszFilename, "GEOMEDIA:", strlen("GEOMEDIA:")) )
+        return NULL;
+
+    if( EQUALN(pszFilename, "WALK:", strlen("WALK:")) )
+        return NULL;
+
     if( !EQUAL(CPLGetExtension(pszFilename),"mdb") )
         return NULL;
 

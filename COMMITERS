@@ -43,8 +43,8 @@ shalasz       Steve Halasz                 DebianGIS Packaging
 mloskot	      Mateusz Loskot		   wince, geojson
               mateusz at loskot.net
 
-ilucena       Ivan Lucena                  idrisi, ingr, georaster
-              ivan.lucena at pmldnet.com
+ilucena       Ivan Lucena                  georaster, oci
+              ivan.lucena at oracle.com
 
 mbrudka	      Marek Brudka		   thread safety
               mbrudka at aster.pl
@@ -126,8 +126,8 @@ martinl       Martin Landa                 OGR: VFK and GRASS drivers
 gaige         Gaige B Paulsen
               osgeo at gbp.gaige.net
 
-kyle	      Kyle Shannon		   netcdf, lcp
-	      ksshannon at gmail.com
+kyle          Kyle Shannon                 netcdf, lcp
+              kyle at pobox.com
 
 winkey        Brian Case                   libkml
               rush at winkey.org
@@ -165,6 +165,12 @@ rcoup         Robert Coup                  OGR: FGDB
 
 dzwarg        David Zwarg                  PostGIS Raster
               dzwarg@azavea.com
+
+wolf          Wolf Bergenheim              GME, vector, python
+              wolf+grass@bergenheim.net
+
+goatbar       Kurt Schwehr                 ocean related drivers, python
+              schwehr@gmail.com
 
 ===============
 Past developers

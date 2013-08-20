@@ -43,6 +43,7 @@ S57Writer::S57Writer()
 {
     poModule = NULL;
     poRegistrar = NULL;
+    poClassContentExplorer = NULL;
 
     nCOMF = 10000000;
     nSOMF = 10;
@@ -864,7 +865,7 @@ int S57Writer::WriteCompleteFeature( OGRFeature *poFeature )
 /* -------------------------------------------------------------------- */
     
     if( poRegistrar != NULL 
-        && poRegistrar->SelectClass( poFeature->GetDefnRef()->GetName() )
+        && poClassContentExplorer->SelectClass( poFeature->GetDefnRef()->GetName() )
         && !WriteATTF( poRec, poFeature ) )
         return FALSE;
 
@@ -963,10 +964,12 @@ int S57Writer::WriteCompleteFeature( OGRFeature *poFeature )
 /*                           SetClassBased()                            */
 /************************************************************************/
 
-void S57Writer::SetClassBased( S57ClassRegistrar * poReg )
+void S57Writer::SetClassBased( S57ClassRegistrar * poReg,
+                               S57ClassContentExplorer* poClassContentExplorerIn )
 
 {
     poRegistrar = poReg;
+    poClassContentExplorer = poClassContentExplorerIn;
 }
 
 /************************************************************************/
@@ -984,7 +987,7 @@ int S57Writer::WriteATTF( DDFRecord *poRec, OGRFeature *poFeature )
 /* -------------------------------------------------------------------- */
 /*      Loop over all attributes.                                       */
 /* -------------------------------------------------------------------- */
-    papszAttrList = poRegistrar->GetAttributeList(NULL); 
+    papszAttrList = poClassContentExplorer->GetAttributeList(NULL); 
     
     for( int iAttr = 0; papszAttrList[iAttr] != NULL; iAttr++ )
     {

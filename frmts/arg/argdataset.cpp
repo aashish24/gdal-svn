@@ -30,8 +30,7 @@
 
 #include "rawdataset.h"
 #include "cpl_string.h"
-#include "jsonc/json.h"
-#include "jsonc/json_util.h"
+#include <json.h>
 #include <ogr_spatialref.h>
 
 CPL_CVSID("$Id$");
@@ -136,9 +135,9 @@ CPLString GetJsonFilename(CPLString pszFilename)
 json_object * GetJsonObject(CPLString pszFilename) 
 {
     json_object * pJSONObject = NULL;
-    CPLString pszJSONFilename = GetJsonFilename(pszFilename);
+    CPLString osJSONFilename = GetJsonFilename(pszFilename);
 
-    pJSONObject = json_object_from_file((char *)pszJSONFilename.c_str());
+    pJSONObject = json_object_from_file((char *)osJSONFilename.c_str());
     if (pJSONObject == (struct json_object*)error_ptr(-1) || pJSONObject == NULL) {
         CPLDebug("ARGDataset", "GetJsonObject(): "
             "Could not parse JSON file.");
@@ -204,9 +203,9 @@ int GetJsonValueInt(json_object * pJSONObject, CPLString pszKey)
 char ** ARGDataset::GetFileList()
 {
     char **papszFileList = GDALPamDataset::GetFileList();
-    CPLString pszJSONFilename = GetJsonFilename(pszFilename);
+    CPLString osJSONFilename = GetJsonFilename(pszFilename);
 
-    papszFileList = CSLAddString( papszFileList, pszJSONFilename );
+    papszFileList = CSLAddString( papszFileList, osJSONFilename );
 
     return papszFileList;
 }
@@ -585,7 +584,7 @@ GDALDataset * ARGDataset::CreateCopy( const char * pszFilename,
     int nYSize = poSrcDS->GetRasterYSize();
     int nXBlockSize, nYBlockSize, nPixelOffset;
     GDALDataType eType;
-    CPLString pszJSONFilename;
+    CPLString osJSONFilename;
     CPLString pszDataType;
     json_object * poJSONObject = NULL;
     double adfTransform[6];
@@ -674,12 +673,7 @@ GDALDataset * ARGDataset::CreateCopy( const char * pszFilename,
     /********************************************************************/
     /* Create JSON companion file.                                      */
     /********************************************************************/
-    pszJSONFilename = GetJsonFilename(pszFilename);
-    if (pszJSONFilename == NULL) {
-        CPLError( CE_Failure, CPLE_NotSupported, 
-                  "ARG driver can't determine filename for companion file.");
-        return NULL;
-    }
+    osJSONFilename = GetJsonFilename(pszFilename);
 
     poJSONObject = json_object_new_object();
 
@@ -689,7 +683,7 @@ GDALDataset * ARGDataset::CreateCopy( const char * pszFilename,
     if ( pszLayer == NULL) {
         // Set the layer
         json_object_object_add(poJSONObject, "layer", json_object_new_string(
-            CPLGetBasename(pszJSONFilename)
+            CPLGetBasename(osJSONFilename)
         ));
     }
     else {
@@ -728,7 +722,7 @@ GDALDataset * ARGDataset::CreateCopy( const char * pszFilename,
         json_object_object_add(poJSONObject, "epsg", json_object_new_int(nSrs));
     }
 
-    if (json_object_to_file((char *)pszJSONFilename.c_str(), poJSONObject) < 0) {
+    if (json_object_to_file((char *)osJSONFilename.c_str(), poJSONObject) < 0) {
         CPLError( CE_Failure, CPLE_NotSupported, 
                   "ARG driver can't write companion file.");
 
@@ -748,7 +742,7 @@ GDALDataset * ARGDataset::CreateCopy( const char * pszFilename,
               "ARG driver can't create data file %s.", pszFilename);
 
         // remove JSON file
-        VSIUnlink( pszJSONFilename.c_str() );
+        VSIUnlink( osJSONFilename.c_str() );
 
         return NULL;
     }

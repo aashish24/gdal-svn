@@ -30,7 +30,7 @@
 #include <cpl_port.h>
 #include <cpl_conv.h>
 #include <ogr_geometry.h>
-#include <jsonc/json.h> // JSON-C
+#include <json.h> // JSON-C
 
 /************************************************************************/
 /*                           GeoJSONIsObject()                          */
@@ -60,7 +60,8 @@ int GeoJSONIsObject( const char* pszText )
     if( *pszText != '{' )
         return FALSE;
 
-    return ((strstr(pszText, "\"type\"") != NULL && strstr(pszText, "\"coordinates\"") != NULL) 
+    return ((strstr(pszText, "\"type\"") != NULL && strstr(pszText, "\"coordinates\"") != NULL)
+        || (strstr(pszText, "\"type\"") != NULL && strstr(pszText, "\"Topology\"") != NULL) 
         || strstr(pszText, "\"FeatureCollection\"") != NULL
         || strstr(pszText, "\"Feature\"") != NULL
         || (strstr(pszText, "\"geometryType\"") != NULL && strstr(pszText, "\"esriGeometry") != NULL));
@@ -137,6 +138,7 @@ GeoJSONSourceType GeoJSONGetSourceType( const char* pszSource, VSILFILE** pfp )
     }
     else if( EQUAL( CPLGetExtension( pszSource ), "geojson" )
              || EQUAL( CPLGetExtension( pszSource ), "json" )
+             || EQUAL( CPLGetExtension( pszSource ), "topojson" )
              || ((EQUALN( pszSource, "/vsigzip/", 9) || EQUALN( pszSource, "/vsizip/", 8)) &&
                  (strstr( pszSource, ".json") || strstr( pszSource, ".JSON") ||
                   strstr( pszSource, ".geojson") || strstr( pszSource, ".GEOJSON")) ))
@@ -177,6 +179,9 @@ GeoJSONProtocolType GeoJSONGetProtocolType( const char* pszSource )
 /*                           GeoJSONPropertyToFieldType()               */
 /************************************************************************/
 
+#define MY_INT64_MAX ((((GIntBig)0x7FFFFFFF) << 32) | 0xFFFFFFFF)
+#define MY_INT64_MIN ((((GIntBig)0x80000000) << 32))
+
 OGRFieldType GeoJSONPropertyToFieldType( json_object* poObject )
 {
     if (poObject == NULL) { return OFTString; }
@@ -188,7 +193,38 @@ OGRFieldType GeoJSONPropertyToFieldType( json_object* poObject )
     else if( json_type_double == type )
         return OFTReal;
     else if( json_type_int == type )
-        return OFTInteger;
+    {
+        GIntBig nVal = json_object_get_int64(poObject);
+        if( nVal == MY_INT64_MIN || nVal == MY_INT64_MAX )
+        {
+            static int bWarned = FALSE;
+            if( !bWarned )
+            {
+                bWarned = TRUE;
+                CPLError(CE_Warning, CPLE_AppDefined,
+                         "Integer values ranging out of 64bit integer range "
+                         "have been found. Will be clamped to INT64_MIN/INT64_MAX");
+            }
+            return OFTString;
+        }
+        // FIXME when we have 64bit integer
+        if( nVal != (int) nVal )
+        {
+            static int bWarned = FALSE;
+            if( !bWarned )
+            {
+                bWarned = TRUE;
+                CPLDebug("GeoJSON",
+                         "64b-bit integer have been found. Will be reported as "
+                         "strings");
+            }
+            return OFTString;
+        }
+        else
+        {
+            return OFTInteger;
+        }
+    }
     else if( json_type_string == type )
         return OFTString;
     else if( json_type_array == type )

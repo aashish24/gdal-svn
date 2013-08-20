@@ -347,6 +347,9 @@ OGRErr FGdbLayer::CreateFeature( OGRFeature *poFeature )
     Row fgdb_row;
     fgdbError hr;
 
+    if( !m_pDS->GetUpdate() )
+        return OGRERR_FAILURE;
+
     if (m_bBulkLoadAllowed < 0)
         m_bBulkLoadAllowed = CSLTestBoolean(CPLGetConfigOption("FGDB_BULK_LOAD", "NO"));
 
@@ -634,6 +637,9 @@ OGRErr FGdbLayer::DeleteFeature( long nFID )
     EnumRows       enumRows;
     Row            row;
 
+    if( !m_pDS->GetUpdate() )
+        return OGRERR_FAILURE;
+
     EndBulkLoad();
 
     if (GetRow(enumRows, row, nFID) != OGRERR_NONE)
@@ -658,6 +664,9 @@ OGRErr FGdbLayer::SetFeature( OGRFeature* poFeature )
     long           hr;
     EnumRows       enumRows;
     Row            row;
+
+    if( !m_pDS->GetUpdate() )
+        return OGRERR_FAILURE;
 
     if( poFeature->GetFID() == OGRNullFID )
     {
@@ -816,6 +825,9 @@ OGRErr FGdbLayer::CreateField(OGRFieldDefn* poField, int bApproxOK)
     std::string fieldname_clean;
     std::string gdbFieldType;
 
+    if( !m_pDS->GetUpdate() )
+        return OGRERR_FAILURE;
+
     char* defn_str = CreateFieldDefn(oField, bApproxOK,
                                      fieldname_clean, gdbFieldType);
     if (defn_str == NULL)
@@ -850,6 +862,10 @@ OGRErr FGdbLayer::CreateField(OGRFieldDefn* poField, int bApproxOK)
 
 OGRErr FGdbLayer::DeleteField( int iFieldToDelete )
 {
+
+    if( !m_pDS->GetUpdate() )
+        return OGRERR_FAILURE;
+
     if (iFieldToDelete < 0 || iFieldToDelete >= m_pFeatureDefn->GetFieldCount())
     {
         CPLError( CE_Failure, CPLE_NotSupported,
@@ -883,6 +899,10 @@ OGRErr FGdbLayer::DeleteField( int iFieldToDelete )
 
 OGRErr FGdbLayer::AlterFieldDefn( int iFieldToAlter, OGRFieldDefn* poNewFieldDefn, int nFlags )
 {
+
+    if( !m_pDS->GetUpdate() )
+        return OGRERR_FAILURE;
+
     if (iFieldToAlter < 0 || iFieldToAlter >= m_pFeatureDefn->GetFieldCount())
     {
         CPLError( CE_Failure, CPLE_NotSupported,
@@ -2027,7 +2047,8 @@ bool FGdbBaseLayer::OGRFeatureFromGdbRow(Row* pRow, OGRFeature** ppFeature)
     ShapeBuffer gdbGeometry;
     // Row::GetGeometry() will fail with -2147467259 for NULL geometries
     // Row::GetGeometry() will fail with -2147219885 for tables without a geometry field
-    if (!FAILED(hr = pRow->GetGeometry(gdbGeometry)))
+    if (!m_pFeatureDefn->IsGeometryIgnored() &&
+        !FAILED(hr = pRow->GetGeometry(gdbGeometry)))
     {
         OGRGeometry* pOGRGeo = NULL;
 
@@ -2052,6 +2073,12 @@ bool FGdbBaseLayer::OGRFeatureFromGdbRow(Row* pRow, OGRFeature** ppFeature)
 
     for (size_t i = 0; i < mappedFieldCount; ++i)
     {
+        OGRFieldDefn* poFieldDefn = m_pFeatureDefn->GetFieldDefn(i);
+        // The IsNull() and GetXXX() API are very slow when there are a 
+        // big number of fields, for example with Tiger database.
+        if (poFieldDefn->IsIgnored() )
+            continue;
+
         const wstring & wstrFieldName = m_vOGRFieldToESRIField[i];
         const std::string & strFieldType = m_vOGRFieldToESRIFieldType[i];
 
@@ -2074,7 +2101,7 @@ bool FGdbBaseLayer::OGRFeatureFromGdbRow(Row* pRow, OGRFeature** ppFeature)
         // NOTE: This switch statement needs to be kept in sync with GDBToOGRFieldType utility function
         //       since we are only checking for types we mapped in that utility function
 
-        switch (m_pFeatureDefn->GetFieldDefn(i)->GetType())
+        switch (poFieldDefn->GetType())
         {
 
             case OFTInteger:
@@ -2482,29 +2509,29 @@ int FGdbLayer::TestCapability( const char* pszCap )
         return m_pOGRFilterGeometry == NULL && m_wstrWhereClause.size() == 0;
 
     else if (EQUAL(pszCap,OLCCreateField)) /* CreateField() */
-        return TRUE;
+        return m_pDS->GetUpdate();
 
     else if (EQUAL(pszCap,OLCSequentialWrite)) /* CreateFeature() */
-        return TRUE;
+        return m_pDS->GetUpdate();
 
     else if (EQUAL(pszCap,OLCStringsAsUTF8)) /* Native UTF16, converted to UTF8 */
         return TRUE;
 
     else if (EQUAL(pszCap,OLCReorderFields)) /* TBD ReorderFields() */
-        return FALSE;
+        return m_pDS->GetUpdate();
 
     else if (EQUAL(pszCap,OLCDeleteFeature)) /* DeleteFeature() */
-        return TRUE;
+        return m_pDS->GetUpdate();
 
     else if (EQUAL(pszCap,OLCRandomWrite)) /* SetFeature() */
-        return TRUE;
+        return m_pDS->GetUpdate();
 
     else if (EQUAL(pszCap,OLCDeleteField)) /* DeleteField() */
-        return TRUE;
+        return m_pDS->GetUpdate();
 
 #ifdef AlterFieldDefn_implemented_but_not_working
     else if (EQUAL(pszCap,OLCAlterFieldDefn)) /* AlterFieldDefn() */
-        return TRUE;
+        return m_pDS->GetUpdate();
 #endif
 
     else if (EQUAL(pszCap,OLCFastSetNextByIndex)) /* TBD FastSetNextByIndex() */
@@ -2512,7 +2539,10 @@ int FGdbLayer::TestCapability( const char* pszCap )
 
     else if (EQUAL(pszCap,OLCTransactions)) /* TBD Start/End Transactions() */
         return FALSE;
-        
+
+    else if( EQUAL(pszCap,OLCIgnoreFields) )
+        return TRUE;
+
     else 
         return FALSE;
 }

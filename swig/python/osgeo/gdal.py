@@ -158,6 +158,10 @@ def PushErrorHandler(*args):
   """PushErrorHandler(CPLErrorHandler pfnErrorHandler = None) -> CPLErr"""
   return _gdal.PushErrorHandler(*args)
 
+def PopErrorHandler(*args):
+  """PopErrorHandler()"""
+  return _gdal.PopErrorHandler(*args)
+
 def Error(*args):
   """Error(CPLErr msg_class = CE_Failure, int err_code = 0, char msg = "error")"""
   return _gdal.Error(*args)
@@ -173,10 +177,6 @@ def GOA2GetRefreshToken(*args):
 def GOA2GetAccessToken(*args):
   """GOA2GetAccessToken(char pszRefreshToken, char pszScope) -> retStringAndCPLFree"""
   return _gdal.GOA2GetAccessToken(*args)
-
-def PopErrorHandler(*args):
-  """PopErrorHandler()"""
-  return _gdal.PopErrorHandler(*args)
 
 def ErrorReset(*args):
   """ErrorReset()"""
@@ -1242,6 +1242,20 @@ class RasterAttributeTable(_object):
     def GetRowOfValue(self, *args):
         """GetRowOfValue(self, double dfValue) -> int"""
         return _gdal.RasterAttributeTable_GetRowOfValue(self, *args)
+
+    def ChangesAreWrittenToFile(self, *args):
+        """ChangesAreWrittenToFile(self) -> int"""
+        return _gdal.RasterAttributeTable_ChangesAreWrittenToFile(self, *args)
+
+    def WriteArray(self, array, field, start=0):
+        import gdalnumeric
+
+        return gdalnumeric.RATWriteArray(self, array, field, start)
+
+    def ReadAsArray(self, field, start=0, length=None):
+        import gdalnumeric
+
+        return gdalnumeric.RATReadArray(self, field, start, length)
 
 RasterAttributeTable_swigregister = _gdal.RasterAttributeTable_swigregister
 RasterAttributeTable_swigregister(RasterAttributeTable)

@@ -30,7 +30,7 @@
 #include "ogrgeojsonutils.h"
 #include "ogrgeojsonreader.h"
 #include <cpl_http.h>
-#include <jsonc/json.h> // JSON-C
+#include <json.h> // JSON-C
 #include <cstddef>
 #include <cstdlib>
 using namespace std;
@@ -370,48 +370,16 @@ void OGRGeoJSONDataSource::Clear()
 
 int OGRGeoJSONDataSource::ReadFromFile( const char* pszSource, VSILFILE* fpIn )
 {
-    VSILFILE* fp;
-    if( fpIn )
-        fp = fpIn;
-    else
-        fp = VSIFOpenL( pszSource, "rb" );
-    if( NULL == fp )
+    GByte* pabyOut = NULL;
+    if( !VSIIngestFile( fpIn, pszSource, &pabyOut, NULL, -1) )
     {
-        CPLDebug( "GeoJSON", "Failed to open input file '%s'", pszSource );
+        if( fpIn != NULL )
+            VSIFCloseL(fpIn);
         return FALSE;
     }
-
-    vsi_l_offset nDataLen = 0;
-
-    VSIFSeekL( fp, 0, SEEK_END );
-    nDataLen = VSIFTellL( fp );
-
-    // With "large" VSI I/O API we can read data chunks larger than VSIMalloc
-    // could allocate. Catch it here.
-    if ( nDataLen > (vsi_l_offset)(size_t)nDataLen )
-    {
-        CPLDebug( "GeoJSON", "Input file too large to be opened" );
-        VSIFCloseL( fp );
-        return FALSE;
-    }
-
-    VSIFSeekL( fp, 0, SEEK_SET );
-
-    pszGeoData_ = (char*)VSIMalloc((size_t)(nDataLen + 1));
-    if( NULL == pszGeoData_ )
-    {
-        VSIFCloseL(fp);
-        return FALSE;
-    }
-
-    pszGeoData_[nDataLen] = '\0';
-    if( ( nDataLen != VSIFReadL( pszGeoData_, 1, (size_t)nDataLen, fp ) ) )
-    {
-        Clear();
-        VSIFCloseL( fp );
-        return FALSE;
-    }
-    VSIFCloseL( fp );
+    if( fpIn != NULL )
+        VSIFCloseL(fpIn);
+    pszGeoData_ = (char*) pabyOut;
 
     pszName_ = CPLStrdup( pszSource );
 
@@ -547,7 +515,22 @@ void OGRGeoJSONDataSource::LoadLayers()
         }
         return;
     }
-    
+
+/* -------------------------------------------------------------------- */
+/*      Is it TopoJSON data ?                                           */
+/* -------------------------------------------------------------------- */
+    if ( strstr(pszGeoData_, "\"type\"") &&
+         strstr(pszGeoData_, "\"Topology\"")  )
+    {
+        OGRTopoJSONReader reader;
+        err = reader.Parse( pszGeoData_ );
+        if( OGRERR_NONE == err )
+        {
+            reader.ReadLayers( this );
+        }
+        return;
+    }
+
 /* -------------------------------------------------------------------- */
 /*      Configure GeoJSON format translator.                            */
 /* -------------------------------------------------------------------- */

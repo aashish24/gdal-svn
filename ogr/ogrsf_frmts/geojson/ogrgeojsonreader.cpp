@@ -29,8 +29,7 @@
 #include "ogrgeojsonreader.h"
 #include "ogrgeojsonutils.h"
 #include "ogr_geojson.h"
-#include <jsonc/json.h> // JSON-C
-#include <jsonc/json_object_private.h> // json_object_iter, complete type required
+#include <json.h> // JSON-C
 #include <ogr_api.h>
 
 /************************************************************************/
@@ -517,7 +516,7 @@ bool OGRGeoJSONReader::GenerateFeatureDefn( OGRGeoJSONLayer* poLayer, json_objec
                 if( eType == OFTInteger )
                 {
                     OGRFieldType eNewType = GeoJSONPropertyToFieldType( it.val );
-                    if( eNewType == OFTReal )
+                    if( eNewType == OFTReal || eNewType == OFTString )
                         poFDefn->SetType(eNewType);
                 }
             }

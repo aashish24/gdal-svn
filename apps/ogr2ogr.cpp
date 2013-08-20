@@ -44,6 +44,8 @@ static int nGroupTransactions = 200;
 static int bPreserveFID = FALSE;
 static int nFIDToFetch = OGRNullFID;
 
+#define COORD_DIM_LAYER_DIM -2
+
 static void Usage(int bShort = TRUE);
 static void Usage(const char* pszAdditionalMsg, int bShort = TRUE);
 
@@ -79,10 +81,11 @@ static TargetLayerInfo* SetupTargetLayer( OGRDataSource *poSrcDS,
                                                 OGRSpatialReference *poOutputSRS,
                                                 int bNullifyOutputSRS,
                                                 char **papszSelFields,
-                                                int bAppend, int eGType,
+                                                int bAppend, int bAddMissingFields, int eGType,
                                                 int bPromoteToMulti,
                                                 int nCoordDim, int bOverwrite,
                                                 char** papszFieldTypesToString,
+                                                int bUnsetFieldWidth,
                                                 int bExplodeCollections,
                                                 const char* pszZField,
                                                 char **papszFieldMap,
@@ -813,6 +816,7 @@ int main( int nArgc, char ** papszArgv )
     char        **papszDSCO = NULL, **papszLCO = NULL;
     int         bTransform = FALSE;
     int         bAppend = FALSE, bUpdate = FALSE, bOverwrite = FALSE;
+    int         bAddMissingFields = FALSE;
     const char  *pszOutputSRSDef = NULL;
     const char  *pszSourceSRSDef = NULL;
     OGRSpatialReference *poOutputSRS = NULL;
@@ -830,6 +834,7 @@ int main( int nArgc, char ** papszArgv )
     GeomOperation eGeomOp = NONE;
     double       dfGeomOpParam = 0;
     char        **papszFieldTypesToString = NULL;
+    int          bUnsetFieldWidth = FALSE;
     int          bDisplayProgress = FALSE;
     GDALProgressFunc pfnProgress = NULL;
     void        *pProgressArg = NULL;
@@ -931,6 +936,12 @@ int main( int nArgc, char ** papszArgv )
             bOverwrite = TRUE;
             bUpdate = TRUE;
         }
+        else if( EQUAL(papszArgv[iArg],"-addfields") )
+        {
+            bAddMissingFields = TRUE;
+            bAppend = TRUE;
+            bUpdate = TRUE;
+        }
         else if( EQUAL(papszArgv[iArg],"-update") )
         {
             bUpdate = TRUE;
@@ -990,12 +1001,17 @@ int main( int nArgc, char ** papszArgv )
         else if( EQUAL(papszArgv[iArg],"-dim")  )
         {
             CHECK_HAS_ENOUGH_ADDITIONAL_ARGS(1);
-            nCoordDim = atoi(papszArgv[iArg+1]);
-            if( nCoordDim != 2 && nCoordDim != 3 )
+            if( EQUAL(papszArgv[iArg+1], "layer_dim") )
+                nCoordDim = COORD_DIM_LAYER_DIM;
+            else
             {
-                fprintf( stderr, "-dim %s: value not handled.\n",
-                        papszArgv[iArg+1] );
-                exit( 1 );
+                nCoordDim = atoi(papszArgv[iArg+1]);
+                if( nCoordDim != 2 && nCoordDim != 3 )
+                {
+                    fprintf( stderr, "-dim %s: value not handled.\n",
+                            papszArgv[iArg+1] );
+                    exit( 1 );
+                }
             }
             iArg ++;
         }
@@ -1102,6 +1118,10 @@ int main( int nArgc, char ** papszArgv )
                 }
                 iter ++;
             }
+        }
+        else if( EQUAL(papszArgv[iArg],"-unsetFieldWidth") )
+        {
+            bUnsetFieldWidth = TRUE;
         }
         else if( EQUAL(papszArgv[iArg],"-progress") )
         {
@@ -1309,7 +1329,7 @@ int main( int nArgc, char ** papszArgv )
         }
         else if( papszArgv[iArg][0] == '-' )
         {
-            Usage(CPLSPrintf("Unkown option name '%s'", papszArgv[iArg]));
+            Usage(CPLSPrintf("Unknown option name '%s'", papszArgv[iArg]));
         }
         else if( pszDestDataSource == NULL )
             pszDestDataSource = papszArgv[iArg];
@@ -1335,6 +1355,16 @@ int main( int nArgc, char ** papszArgv )
     if (pszFieldMap && !bAppend)
     {
         Usage("if -fieldmap is specified, -append must also be specified");
+    }
+
+    if (pszFieldMap && bAddMissingFields)
+{
+        Usage("if -addfields is specified, -fieldmap cannot be used.");
+    }
+
+    if( pszSourceSRSDef != NULL && pszOutputSRSDef == NULL )
+    {
+        Usage("if -s_srs is specified, -t_srs must also be specified");
     }
 
     if( bClipSrc && pszClipSrcDS != NULL)
@@ -1670,10 +1700,11 @@ int main( int nArgc, char ** papszArgv )
                                                 poOutputSRS,
                                                 bNullifyOutputSRS,
                                                 papszSelFields,
-                                                bAppend, eGType,
+                                                bAppend, bAddMissingFields, eGType,
                                                 bPromoteToMulti,
                                                 nCoordDim, bOverwrite,
                                                 papszFieldTypesToString,
+                                                bUnsetFieldWidth,
                                                 bExplodeCollections,
                                                 pszZField,
                                                 papszFieldMap,
@@ -1825,10 +1856,11 @@ int main( int nArgc, char ** papszArgv )
                                                     poOutputSRS,
                                                     bNullifyOutputSRS,
                                                     papszSelFields,
-                                                    bAppend, eGType,
+                                                    bAppend, bAddMissingFields, eGType,
                                                     bPromoteToMulti,
                                                     nCoordDim, bOverwrite,
                                                     papszFieldTypesToString,
+                                                    bUnsetFieldWidth,
                                                     bExplodeCollections,
                                                     pszZField,
                                                     papszFieldMap,
@@ -1901,6 +1933,11 @@ int main( int nArgc, char ** papszArgv )
             }
         }
         while( bHasLayersNonEmpty );
+
+        if (pfnProgress)
+        {
+            pfnProgress(1.0, "", pProgressArg);
+        }
 
 /* -------------------------------------------------------------------- */
 /*      Cleanup.                                                        */
@@ -2094,10 +2131,11 @@ int main( int nArgc, char ** papszArgv )
                                                 poOutputSRS,
                                                 bNullifyOutputSRS,
                                                 papszSelFields,
-                                                bAppend, eGType,
+                                                bAppend, bAddMissingFields, eGType,
                                                 bPromoteToMulti,
                                                 nCoordDim, bOverwrite,
                                                 papszFieldTypesToString,
+                                                bUnsetFieldWidth,
                                                 bExplodeCollections,
                                                 pszZField,
                                                 papszFieldMap,
@@ -2208,7 +2246,7 @@ static void Usage(const char* pszAdditionalMsg, int bShort)
             "               [-a_srs srs_def] [-t_srs srs_def] [-s_srs srs_def]\n"
             "               [-f format_name] [-overwrite] [[-dsco NAME=VALUE] ...]\n"
             "               dst_datasource_name src_datasource_name\n"
-            "               [-lco NAME=VALUE] [-nln name] [-nlt type] [-dim 2|3] [layer [layer ...]]\n"
+            "               [-lco NAME=VALUE] [-nln name] [-nlt type] [-dim 2|3|layer_dim] [layer [layer ...]]\n"
             "\n"
             "Advanced options :\n"
             "               [-gt n]\n"
@@ -2220,7 +2258,8 @@ static void Usage(const char* pszAdditionalMsg, int bShort)
             "               [-clipdstwhere expression]\n"
             "               [-wrapdateline][-datelineoffset val]\n"
             "               [[-simplify tolerance] | [-segmentize max_dist]]\n"
-            "               [-fieldTypeToString All|(type1[,type2]*)]\n"
+            "               [-addfields]\n"
+            "               [-fieldTypeToString All|(type1[,type2]*)] [-unsetFieldWidth]\n"
             "               [-fieldmap identity | index1[,index2]*]\n"
             "               [-splitlistfields] [-maxsubfields val]\n"
             "               [-explodecollections] [-zfield field_name]\n"
@@ -2362,10 +2401,11 @@ static TargetLayerInfo* SetupTargetLayer( OGRDataSource *poSrcDS,
                                                 OGRSpatialReference *poOutputSRS,
                                                 int bNullifyOutputSRS,
                                                 char **papszSelFields,
-                                                int bAppend, int eGType,
+                                                int bAppend, int bAddMissingFields, int eGType,
                                                 int bPromoteToMulti,
                                                 int nCoordDim, int bOverwrite,
                                                 char** papszFieldTypesToString,
+                                                int bUnsetFieldWidth,
                                                 int bExplodeCollections,
                                                 const char* pszZField,
                                                 char **papszFieldMap,
@@ -2584,6 +2624,11 @@ static TargetLayerInfo* SetupTargetLayer( OGRDataSource *poSrcDS,
                 {
                     oFieldDefn.SetType(OFTString);
                 }
+                if( bUnsetFieldWidth )
+                {
+                    oFieldDefn.SetWidth(0);
+                    oFieldDefn.SetPrecision(0);
+                }
 
                 /* The field may have been already created at layer creation */
                 int iDstField = -1;
@@ -2676,7 +2721,7 @@ static TargetLayerInfo* SetupTargetLayer( OGRDataSource *poSrcDS,
             CSLDestroy(papszWHEREUsedFields);
         }
     }
-    else if( !bAppend )
+    else if( !bAppend || bAddMissingFields )
     {
         int nDstFieldCount = 0;
         if (poDstFDefn)
@@ -2689,8 +2734,9 @@ static TargetLayerInfo* SetupTargetLayer( OGRDataSource *poSrcDS,
         for( iField = 0; iField < nDstFieldCount; iField++ )
         {
             const char* pszFieldName = poDstFDefn->GetFieldDefn(iField)->GetNameRef();
-            if( oMapExistingFields.find(pszFieldName) == oMapExistingFields.end() )
-                oMapExistingFields[pszFieldName] = iField;
+            CPLString osUpperFieldName(CPLString(pszFieldName).toupper());
+            if( oMapExistingFields.find(osUpperFieldName) == oMapExistingFields.end() )
+                oMapExistingFields[osUpperFieldName] = iField;
             /*else
                 CPLError(CE_Warning, CPLE_AppDefined,
                          "The target layer has already a duplicated field name '%s' before "
@@ -2709,10 +2755,15 @@ static TargetLayerInfo* SetupTargetLayer( OGRDataSource *poSrcDS,
             {
                 oFieldDefn.SetType(OFTString);
             }
+            if( bUnsetFieldWidth )
+            {
+                oFieldDefn.SetWidth(0);
+                oFieldDefn.SetPrecision(0);
+            }
 
             /* The field may have been already created at layer creation */
             std::map<CPLString, int>::iterator oIter =
-                oMapExistingFields.find(oFieldDefn.GetNameRef());
+                oMapExistingFields.find(CPLString(oFieldDefn.GetNameRef()).toupper());
             if( oIter != oMapExistingFields.end() )
             {
                 panMap[iField] = oIter->second;
@@ -3131,6 +3182,8 @@ static int TranslateLayer( TargetLayerInfo* psInfo,
 
                 if (nCoordDim == 2 || nCoordDim == 3)
                     poDstGeometry->setCoordinateDimension( nCoordDim );
+                else if ( nCoordDim == COORD_DIM_LAYER_DIM )
+                    poDstGeometry->setCoordinateDimension( (poDstLayer->GetGeomType() & wkb25DBit) ? 3 : 2 );
 
                 if (eGeomOp == SEGMENTIZE)
                 {
@@ -3234,9 +3287,18 @@ static int TranslateLayer( TargetLayerInfo* psInfo,
                 if( nGroupTransactions )
                     poDstLayer->RollbackTransaction();
 
+                CPLError( CE_Failure, CPLE_AppDefined,
+                        "Unable to write feature %ld from layer %s.\n",
+                        poFeature->GetFID(), poSrcLayer->GetName() );
+
                 OGRFeature::DestroyFeature( poFeature );
                 OGRFeature::DestroyFeature( poDstFeature );
                 return FALSE;
+            }
+            else
+            {
+                CPLDebug( "OGR2OGR", "Unable to write feature %ld into layer %s.\n",
+                           poFeature->GetFID(), poSrcLayer->GetName() );
             }
 
 end_loop:

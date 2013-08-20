@@ -29,6 +29,8 @@
 
 #include "ogr_gml.h"
 #include "cpl_conv.h"
+#include "cpl_multiproc.h"
+#include "gmlreaderp.h"
 
 CPL_CVSID("$Id$");
 
@@ -39,6 +41,9 @@ CPL_CVSID("$Id$");
 OGRGMLDriver::~OGRGMLDriver()
 
 {
+    if( GMLReader::hMutex != NULL )
+        CPLDestroyMutex( GMLReader::hMutex );
+    GMLReader::hMutex = NULL;
 }
 
 /************************************************************************/
@@ -66,8 +71,7 @@ OGRDataSource *OGRGMLDriver::Open( const char * pszFilename,
 
     poDS = new OGRGMLDataSource();
 
-    if( !poDS->Open( pszFilename, TRUE )
-        || poDS->GetLayerCount() == 0 )
+    if( !poDS->Open( pszFilename, TRUE ) )
     {
         delete poDS;
         return NULL;

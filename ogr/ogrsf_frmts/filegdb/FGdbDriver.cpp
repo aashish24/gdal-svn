@@ -32,6 +32,8 @@
 #include "ogr_fgdb.h"
 #include "cpl_conv.h"
 #include "FGdbUtils.h"
+#include "cpl_multiproc.h"
+#include "ogrmutexeddatasource.h"
 
 CPL_CVSID("$Id$");
 
@@ -40,8 +42,7 @@ extern "C" void RegisterOGRFileGDB();
 /************************************************************************/
 /*                            FGdbDriver()                              */
 /************************************************************************/
-FGdbDriver::FGdbDriver():
-OGRSFDriver()
+FGdbDriver::FGdbDriver(): OGRSFDriver(), hMutex(NULL)
 {
 }
 
@@ -51,6 +52,9 @@ OGRSFDriver()
 FGdbDriver::~FGdbDriver()
 
 {
+    if( hMutex != NULL )
+        CPLDestroyMutex(hMutex);
+    hMutex = NULL;
 }
 
 
@@ -89,21 +93,37 @@ OGRDataSource *FGdbDriver::Open( const char* pszFilename, int bUpdate )
         return NULL;
     }
 
-    Geodatabase* pGeoDatabase = new Geodatabase;
+    CPLMutexHolderD(&hMutex);
+    Geodatabase* pGeoDatabase = NULL;
 
-    hr = ::OpenGeodatabase(StringToWString(pszFilename), *pGeoDatabase);
-
-    if (FAILED(hr) || pGeoDatabase == NULL)
+    FGdbDatabaseConnection* pConnection = oMapConnections[pszFilename];
+    if( pConnection != NULL )
     {
-        delete pGeoDatabase;
+        pGeoDatabase = pConnection->m_pGeodatabase;
+        pConnection->m_nRefCount ++;
+        CPLDebug("FileGDB", "ref_count of %s = %d now", pszFilename,
+                 pConnection->m_nRefCount);
+    }
+    else
+    {
+        pGeoDatabase = new Geodatabase;
+        hr = ::OpenGeodatabase(StringToWString(pszFilename), *pGeoDatabase);
 
-        GDBErr(hr, "Failed to open Geodatabase");
-        return NULL;
+        if (FAILED(hr) || pGeoDatabase == NULL)
+        {
+            delete pGeoDatabase;
+
+            GDBErr(hr, "Failed to open Geodatabase");
+            return NULL;
+        }
+
+        CPLDebug("FileGDB", "Really opening %s", pszFilename);
+        oMapConnections[pszFilename] = new FGdbDatabaseConnection(pGeoDatabase);
     }
 
     FGdbDataSource* pDS;
 
-    pDS = new FGdbDataSource();
+    pDS = new FGdbDataSource(this);
 
     if(!pDS->Open( pGeoDatabase, pszFilename, bUpdate ) )
     {
@@ -111,7 +131,7 @@ OGRDataSource *FGdbDriver::Open( const char* pszFilename, int bUpdate )
         return NULL;
     }
     else
-        return pDS;
+        return new OGRMutexedDataSource(pDS, TRUE, hMutex);
 }
 
 /***********************************************************************/
@@ -126,6 +146,8 @@ OGRDataSource* FGdbDriver::CreateDataSource( const char * conn,
     std::wstring wconn = StringToWString(conn);
     int bUpdate = TRUE; // If we're creating, we must be writing.
     VSIStatBuf stat;
+
+    CPLMutexHolderD(&hMutex);
 
     /* We don't support options yet, so warn if they send us some */
     if ( papszOptions )
@@ -166,39 +188,43 @@ OGRDataSource* FGdbDriver::CreateDataSource( const char * conn,
         return NULL;
     }
 
+    oMapConnections[conn] = new FGdbDatabaseConnection(pGeodatabase);
+
     /* Ready to embed the Geodatabase in an OGR Datasource */
-    FGdbDataSource* pDS = new FGdbDataSource();
+    FGdbDataSource* pDS = new FGdbDataSource(this);
     if ( ! pDS->Open(pGeodatabase, conn, bUpdate) )
     {
         delete pDS;
         return NULL;
     }
     else
-        return pDS;
+        return new OGRMutexedDataSource(pDS, TRUE, hMutex);
 }
 
 /***********************************************************************/
-/*                        OpenGeodatabase()                            */
+/*                            Release()                                */
 /***********************************************************************/
 
-void FGdbDriver::OpenGeodatabase(std::string conn, Geodatabase** ppGeodatabase)
+void FGdbDriver::Release(const char* pszName)
 {
-    *ppGeodatabase = NULL;
+    CPLMutexHolderOptionalLockD(hMutex);
 
-    std::wstring wconn = StringToWString(conn);
-
-    long hr;
-
-    Geodatabase* pGeoDatabase = new Geodatabase;
-
-    if (S_OK != (hr = ::OpenGeodatabase(wconn, *pGeoDatabase)))
+    FGdbDatabaseConnection* pConnection = oMapConnections[pszName];
+    if( pConnection != NULL )
     {
-        delete pGeoDatabase;
-
-        return;
+        pConnection->m_nRefCount --;
+        CPLDebug("FileGDB", "ref_count of %s = %d now", pszName,
+                 pConnection->m_nRefCount);
+        if( pConnection->m_nRefCount == 0 )
+        {
+            CPLDebug("FileGDB", "Really closing %s now", pszName);
+            ::CloseGeodatabase(*(pConnection->m_pGeodatabase));
+            delete pConnection->m_pGeodatabase;
+            pConnection->m_pGeodatabase = NULL;
+            delete pConnection;
+            oMapConnections.erase(pszName);
+        }
     }
-
-    *ppGeodatabase = pGeoDatabase;
 }
 
 /***********************************************************************/
@@ -221,6 +247,7 @@ int FGdbDriver::TestCapability( const char * pszCap )
 
 OGRErr FGdbDriver::DeleteDataSource( const char *pszDataSource )
 {
+    CPLMutexHolderD(&hMutex);
 
     std::wstring wstr = StringToWString(pszDataSource);
 

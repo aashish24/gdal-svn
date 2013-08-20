@@ -4,7 +4,7 @@
  * Name:     georaster_priv.h
  * Project:  Oracle Spatial GeoRaster Driver
  * Purpose:  Define C++/Private declarations
- * Author:   Ivan Lucena [ivan.lucena@pmldnet.com]
+ * Author:   Ivan Lucena [ivan.lucena at oracle.com]
  *
  ******************************************************************************
  * Copyright (c) 2008, Ivan Lucena
@@ -247,7 +247,7 @@ public:
     virtual CPLErr      GetStatistics( int bApproxOK, int bForce,
                             double* pdfMin, double* pdfMax, 
                             double* pdfMean, double* pdfStdDev );
-    virtual const       GDALRasterAttributeTable *GetDefaultRAT();
+    virtual             GDALRasterAttributeTable *GetDefaultRAT();
     virtual CPLErr      SetDefaultRAT( const GDALRasterAttributeTable * );
     virtual int         GetOverviewCount();
     virtual GDALRasterBand*
@@ -403,6 +403,7 @@ public:
     int                 nSRID;
     int                 nExtentSRID;
     bool                bGenSpatialIndex;
+    bool                bCreateObjectTable;
     CPLXMLNode*         phMetadata;
     CPLString           sCellDepth;
     CPLString           sCompressionType;

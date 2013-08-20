@@ -108,14 +108,23 @@ GDALAutoCreateWarpedVRT( GDALDatasetH hSrcDS,
 
     psWO->hSrcDS = hSrcDS;
 
-    psWO->nBandCount = GDALGetRasterCount( hSrcDS );
-    psWO->panSrcBands = (int *) CPLMalloc(sizeof(int) * psWO->nBandCount);
-    psWO->panDstBands = (int *) CPLMalloc(sizeof(int) * psWO->nBandCount);
-
-    for( i = 0; i < psWO->nBandCount; i++ )
+/* -------------------------------------------------------------------- */
+/*      Define band mapping if necessary.                               */
+/* -------------------------------------------------------------------- */
+    if( psWO->nBandCount == GDALGetRasterCount( hSrcDS ) ||
+        psWO->nBandCount == 0 )
     {
-        psWO->panSrcBands[i] = i+1;
-        psWO->panDstBands[i] = i+1;
+        if( psWO->nBandCount == 0 )
+        {
+            psWO->nBandCount = GDALGetRasterCount( hSrcDS );
+            psWO->panSrcBands = (int *) CPLMalloc(sizeof(int) * psWO->nBandCount);
+            psWO->panDstBands = (int *) CPLMalloc(sizeof(int) * psWO->nBandCount);
+        }
+        for( i = 0; i < psWO->nBandCount; i++ )
+        {
+            psWO->panSrcBands[i] = i+1;
+            psWO->panDstBands[i] = i+1;
+        }
     }
 
     /* TODO: should fill in no data where available */
@@ -146,6 +155,12 @@ GDALAutoCreateWarpedVRT( GDALDatasetH hSrcDS,
         GDALSuggestedWarpOutput( hSrcDS, psWO->pfnTransformer, 
                                  psWO->pTransformerArg, 
                                  adfDstGeoTransform, &nDstPixels, &nDstLines );
+    if( eErr != CE_None )
+    {
+        GDALDestroyTransformer( psWO->pTransformerArg );
+        GDALDestroyWarpOptions( psWO );
+        return NULL;
+    }
 
 /* -------------------------------------------------------------------- */
 /*      Update the transformer to include an output geotransform        */

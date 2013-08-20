@@ -31,6 +31,7 @@
 #include "cpl_error.h"
 #include "cpl_string.h"
 #include "gmlutils.h"
+#include "cpl_multiproc.h"
 
 #define SUPPORT_GEOMETRY
 
@@ -46,6 +47,8 @@
 
 #include "nasreaderp.h"
 #include "cpl_conv.h"
+
+void *NASReader::hMutex = NULL;
 
 /************************************************************************/
 /*                          CreateGMLReader()                           */
@@ -127,9 +130,11 @@ const char* NASReader::GetSourceFileName()
 int NASReader::SetupParser()
 
 {
-    static int bXercesInitialized = FALSE;
+    {
+    CPLMutexHolderD(&hMutex);
+    static int bXercesInitialized = -1;
 
-    if( !bXercesInitialized )
+    if( bXercesInitialized < 0)
     {
         try
         {
@@ -141,9 +146,13 @@ int NASReader::SetupParser()
             CPLError( CE_Warning, CPLE_AppDefined,
                       "Exception initializing Xerces based GML reader.\n%s", 
                       tr_strdup(toCatch.getMessage()) );
+            bXercesInitialized = FALSE;
             return FALSE;
         }
         bXercesInitialized = TRUE;
+    }
+    if( !bXercesInitialized )
+        return FALSE;
     }
 
     // Cleanup any old parser.
@@ -844,7 +853,7 @@ int NASReader::SaveClasses( const char *pszFile )
 /*      looking for schema information.                                 */
 /************************************************************************/
 
-int NASReader::PrescanForSchema( int bGetExtents )
+int NASReader::PrescanForSchema( int bGetExtents, int bAnalyzeSRSPerFeature )
 
 {
     GMLFeature  *poFeature;

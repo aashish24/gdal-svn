@@ -89,6 +89,29 @@ CPLMutexHolder::CPLMutexHolder( void **phMutex, double dfWaitInSeconds,
 }
 
 /************************************************************************/
+/*                           CPLMutexHolder()                           */
+/************************************************************************/
+
+CPLMutexHolder::CPLMutexHolder( void *hMutexIn, double dfWaitInSeconds,
+                                const char *pszFileIn, 
+                                int nLineIn )
+
+{
+#ifndef MUTEX_NONE
+    pszFile = pszFileIn;
+    nLine = nLineIn;
+    hMutex = hMutexIn;
+
+    if( hMutex != NULL &&
+        !CPLAcquireMutex( hMutex, dfWaitInSeconds ) )
+    {
+        fprintf( stderr, "CPLMutexHolder: Failed to acquire mutex!\n" );
+        hMutex = NULL;
+    }
+#endif /* ndef MUTEX_NONE */
+}
+
+/************************************************************************/
 /*                          ~CPLMutexHolder()                           */
 /************************************************************************/
 
@@ -747,8 +770,9 @@ void  CPLCondWait( void *hCond, void* hClientMutex )
     /* Release the client mutex before waiting for the event being signaled */
     CPLReleaseMutex(hClientMutex);
 
-    DWORD nRet = WaitForSingleObject(hEvent, INFINITE);
-    CPLAssert (nRet != WAIT_FAILED);
+    // Ideally we would check that we do not get WAIT_FAILED but it is hard 
+    // to report a failure.
+    WaitForSingleObject(hEvent, INFINITE);
 
     /* Reacquire the client mutex */
     CPLAcquireMutex(hClientMutex, 1000.0);

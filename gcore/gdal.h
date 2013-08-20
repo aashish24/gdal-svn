@@ -279,10 +279,10 @@ GDAL_GCP CPL_DLL * CPL_STDCALL GDALDuplicateGCPs( int, const GDAL_GCP * );
 
 int CPL_DLL CPL_STDCALL
 GDALGCPsToGeoTransform( int nGCPCount, const GDAL_GCP *pasGCPs, 
-                        double *padfGeoTransform, int bApproxOK ); 
+                        double *padfGeoTransform, int bApproxOK )  CPL_WARN_UNUSED_RESULT; 
 int CPL_DLL CPL_STDCALL
 GDALInvGeoTransform( double *padfGeoTransformIn, 
-                     double *padfInvGeoTransformOut );
+                     double *padfInvGeoTransformOut ) CPL_WARN_UNUSED_RESULT;
 void CPL_DLL CPL_STDCALL GDALApplyGeoTransform( double *, double, double, 
                                                 double *, double * );
 
@@ -723,6 +723,16 @@ void CPL_DLL CPL_STDCALL GDALRATSetValueAsInt( GDALRasterAttributeTableH, int, i
                                                int );
 void CPL_DLL CPL_STDCALL GDALRATSetValueAsDouble( GDALRasterAttributeTableH, int, int,
                                                   double );
+
+int CPL_DLL CPL_STDCALL GDALRATChangesAreWrittenToFile( GDALRasterAttributeTableH hRAT );
+
+CPLErr CPL_DLL CPL_STDCALL GDALRATValuesIOAsDouble( GDALRasterAttributeTableH hRAT, GDALRWFlag eRWFlag, 
+                                        int iField, int iStartRow, int iLength, double *pdfData );
+CPLErr CPL_DLL CPL_STDCALL GDALRATValuesIOAsInteger( GDALRasterAttributeTableH hRAT, GDALRWFlag eRWFlag, 
+                                        int iField, int iStartRow, int iLength, int *pnData);
+CPLErr CPL_DLL CPL_STDCALL GDALRATValuesIOAsString( GDALRasterAttributeTableH hRAT, GDALRWFlag eRWFlag, 
+                                        int iField, int iStartRow, int iLength, char **papszStrList);
+
 void CPL_DLL CPL_STDCALL GDALRATSetRowCount( GDALRasterAttributeTableH, 
                                              int );
 CPLErr CPL_DLL CPL_STDCALL GDALRATCreateColumn( GDALRasterAttributeTableH, 

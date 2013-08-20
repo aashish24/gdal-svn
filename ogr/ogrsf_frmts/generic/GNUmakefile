@@ -5,7 +5,8 @@ include ../../../GDALmake.opt
 OBJ	=	ogrsfdriverregistrar.o ogrlayer.o ogrdatasource.o \
 		ogrsfdriver.o ogrregisterall.o ogr_gensql.o \
 		ogr_attrind.o ogr_miattrind.o ogrlayerdecorator.o \
-		ogrwarpedlayer.o ogrunionlayer.o ogrlayerpool.o
+		ogrwarpedlayer.o ogrunionlayer.o ogrlayerpool.o \
+		ogrmutexedlayer.o ogrmutexeddatasource.o
 
 BASEFORMATS = \
 	-DAVCBIN_ENABLED \
@@ -160,6 +161,10 @@ CXXFLAGS :=	$(CXXFLAGS) -DGFT_ENABLED
 endif
 
 ifeq ($(CURL_SETTING),yes)
+CXXFLAGS :=	$(CXXFLAGS) -DGME_ENABLED
+endif
+
+ifeq ($(CURL_SETTING),yes)
 CXXFLAGS :=	$(CXXFLAGS) -DCOUCHDB_ENABLED
 endif
 
@@ -185,6 +190,10 @@ endif
 
 ifneq ($(LIBZ_SETTING),no)
 CXXFLAGS :=	$(CXXFLAGS) -DPDF_ENABLED
+endif
+
+ifeq ($(ODBC_SETTING),yes)
+CXXFLAGS :=	$(CXXFLAGS) -DWALK_ENABLED
 endif
 
 CPPFLAGS	:=	-I.. -I../.. $(GDAL_INCLUDE) $(CPPFLAGS)

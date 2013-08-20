@@ -227,26 +227,26 @@ dnl ---------------------------------------------------------------------------
 AC_ARG_WITH(sse,
 [  --with-sse[=ARG]        Detect SSE availability for some optimized routines (ARG=yes(default), no)],,)
 
-AC_MSG_CHECKING([whether SSE is available])
+AC_MSG_CHECKING([whether SSE is available at compile time])
 
 if test "$with_sse" = "yes" -o "$with_sse" = ""; then
 
     rm -f detectsse.cpp
     echo '#ifdef __SSE__' > detectsse.cpp
     echo '#include <xmmintrin.h>' >> detectsse.cpp
-    echo 'void foo() { float fEpsilon = 0.0000000000001f; __m128 xmm_small = _mm_load1_ps(&fEpsilon); } ' >> detectsse.cpp
+    echo 'void foo() { float fEpsilon = 0.0000000000001f; __m128 xmm_small = _mm_load1_ps(&fEpsilon); }  int main() { return 0; }' >> detectsse.cpp
     echo '#else' >> detectsse.cpp
     echo 'some_error' >> detectsse.cpp
     echo '#endif' >> detectsse.cpp
-    if test -z "`${CXX} -c detectsse.cpp 2>&1`" ; then
+    if test -z "`${CXX} ${CXXFLAGS} -o detectsse detectsse.cpp 2>&1`" ; then
         AC_MSG_RESULT([yes])
-        CFLAGS="$CFLAGS -DHAVE_SSE_AT_COMPILE_TIME"
-        CXXFLAGS="$CXXFLAGS -DHAVE_SSE_AT_COMPILE_TIME"
+        SSEFLAGS="-DHAVE_SSE_AT_COMPILE_TIME"
+        HAVE_SSE_AT_COMPILE_TIME=yes
     else
-        if test -z "`${CXX} -msse -c detectsse.cpp 2>&1`" ; then
+        if test -z "`${CXX} ${CXXFLAGS} -msse -o detectsse detectsse.cpp 2>&1`" ; then
             AC_MSG_RESULT([yes])
-            CFLAGS="$CFLAGS -msse -DHAVE_SSE_AT_COMPILE_TIME"
-            CXXFLAGS="$CXXFLAGS -msse -DHAVE_SSE_AT_COMPILE_TIME"
+            SSEFLAGS="-msse -DHAVE_SSE_AT_COMPILE_TIME"
+            HAVE_SSE_AT_COMPILE_TIME=yes
         else
             AC_MSG_RESULT([no])
             if test "$with_sse" = "yes"; then
@@ -254,10 +254,107 @@ if test "$with_sse" = "yes" -o "$with_sse" = ""; then
             fi
         fi
     fi
-    rm -f detectsse.*
+
+    dnl On Solaris, the presence of SSE instructions is flagged in the binary
+    dnl and prevent it to run on non SSE hardware even if the instructions are
+    dnl not executed. So if the user did not explicitely requires SSE, test that
+    dnl we can run SSE binaries
+    if test "$HAVE_SSE_AT_COMPILE_TIME" = "yes"; then
+       case $host_os in
+         solaris*)
+           AC_MSG_CHECKING([whether SSE is available and needed at runtime])
+           if ./detectsse; then
+             AC_MSG_RESULT([yes])
+           else
+             AC_MSG_RESULT([no])
+             if test "$with_sse" = "yes"; then
+               echo "Caution: the generated binaries will not run on this system."
+             else
+               echo "Disabling SSE as it is not explicitely required"
+               HAVE_SSE_AT_COMPILE_TIME=""
+               SSEFLAGS=""
+             fi
+           fi
+           ;;
+       esac
+    fi
+
+    if test "$HAVE_SSE_AT_COMPILE_TIME" = "yes"; then
+      CFLAGS="$CFLAGS $SSEFLAGS"
+      CXXFLAGS="$CXXFLAGS $SSEFLAGS"
+    fi
+
+    rm -f detectsse*
 else
     AC_MSG_RESULT([no])
 fi
+
+dnl ---------------------------------------------------------------------------
+dnl Check AVX availability
+dnl ---------------------------------------------------------------------------
+
+AC_ARG_WITH(avx,
+[  --with-avx[=ARG]        Detect AVX availability for some optimized routines (ARG=yes(default), no)],,)
+
+AC_MSG_CHECKING([whether AVX is available at compile time])
+
+if test "$with_avx" = "yes" -o "$with_avx" = ""; then
+
+    rm -f detectavx.cpp
+    echo '#ifdef __AVX__' > detectavx.cpp
+    echo '#include <immintrin.h>' >> detectavx.cpp
+    echo 'void foo() { unsigned int nXCRLow, nXCRHigh; __asm__ ("xgetbv" : "=a" (nXCRLow), "=d" (nXCRHigh) : "c" (0)); float fEpsilon = 0.0000000000001f; __m256 ymm_small = _mm256_set_ps(fEpsilon,fEpsilon,fEpsilon,fEpsilon,fEpsilon,fEpsilon,fEpsilon,fEpsilon); } int main() { return 0; }' >> detectavx.cpp
+    echo '#else' >> detectavx.cpp
+    echo 'some_error' >> detectavx.cpp
+    echo '#endif' >> detectavx.cpp
+    if test -z "`${CXX} ${CXXFLAGS} -o detectavx detectavx.cpp 2>&1`" ; then
+        AC_MSG_RESULT([yes])
+        AVXFLAGS=""
+        HAVE_AVX_AT_COMPILE_TIME=yes
+    else
+        if test -z "`${CXX} ${CXXFLAGS} -mavx -o detectavx detectavx.cpp 2>&1`" ; then
+            AC_MSG_RESULT([yes])
+            AVXFLAGS="-mavx"
+            HAVE_AVX_AT_COMPILE_TIME=yes
+        else
+            AC_MSG_RESULT([no])
+            if test "$with_avx" = "yes"; then
+                AC_MSG_ERROR([--with-avx was requested, but AVX is not available])
+            fi
+        fi
+    fi
+
+    dnl On Solaris, the presence of AVX instructions is flagged in the binary
+    dnl and prevent it to run on non AVX hardware even if the instructions are
+    dnl not executed. So if the user did not explicitely requires AVX, test that
+    dnl we can run AVX binaries
+    if test "$HAVE_AVX_AT_COMPILE_TIME" = "yes"; then
+       case $host_os in
+         solaris*)
+           AC_MSG_CHECKING([whether AVX is available and needed at runtime])
+           if ./detectavx; then
+             AC_MSG_RESULT([yes])
+           else
+             AC_MSG_RESULT([no])
+             if test "$with_avx" = "yes"; then
+               echo "Caution: the generated binaries will not run on this system."
+             else
+               echo "Disabling AVX as it is not explicitely required"
+               AVXFLAGS=""
+               HAVE_AVX_AT_COMPILE_TIME=""
+             fi
+           fi
+           ;;
+       esac
+    fi
+
+    rm -f detectavx*
+else
+    AC_MSG_RESULT([no])
+fi
+
+AC_SUBST(AVXFLAGS,$AVXFLAGS)
+AC_SUBST(HAVE_AVX_AT_COMPILE_TIME,$HAVE_AVX_AT_COMPILE_TIME)
 
 dnl ---------------------------------------------------------------------------
 dnl Check if we need -lws2_32
@@ -623,12 +720,21 @@ fi
 # TODO: separate libs for rasters and vectors
 if test "$with_grass" != "yes" -a "$with_grass" != "no" ; then
 
-  AC_CHECK_LIB(grass_gis,G_asprintf,GRASS_SETTING=grass57+,GRASS_SETTING=no,-L$with_grass/lib -lgrass_datetime)
+  AC_CHECK_LIB(grass_gis,G_is_initialized,GRASS_SETTING=grass70+,GRASS_SETTING=no,-L$with_grass/lib -lgrass_datetime)
+  if test "$GRASS_SETTING" = "no" ; then
+    AC_CHECK_LIB(grass_gis,G_asprintf,GRASS_SETTING=grass57+,GRASS_SETTING=no,-L$with_grass/lib -lgrass_datetime)
+  fi
    
-  if test "$GRASS_SETTING" = "grass57+" ; then   
-    G_RASTLIBS="-lgrass_I"
-    G_VECTLIBS="-lgrass_vect -lgrass_dig2 -lgrass_dgl -lgrass_rtree -lgrass_linkm -lgrass_dbmiclient -lgrass_dbmibase"
-    LIBS="-L$with_grass/lib $G_VECTLIBS $G_RASTLIBS -lgrass_gproj -lgrass_vask -lgrass_gmath -lgrass_gis -lgrass_datetime $LIBS"
+  if test "$GRASS_SETTING" != "no" ; then   
+    if test "$GRASS_SETTING" = "grass70+" ; then   
+      G_RASTLIBS="-lgrass_raster -lgrass_imagery"
+      G_VECTLIBS="-lgrass_vector -lgrass_dig2 -lgrass_dgl -lgrass_rtree -lgrass_linkm -lgrass_dbmiclient -lgrass_dbmibase"
+      LIBS="-L$with_grass/lib $G_VECTLIBS $G_RASTLIBS -lgrass_gproj -lgrass_gmath -lgrass_gis -lgrass_datetime $LIBS"
+    else
+      G_RASTLIBS="-lgrass_I"
+      G_VECTLIBS="-lgrass_vect -lgrass_dig2 -lgrass_dgl -lgrass_rtree -lgrass_linkm -lgrass_dbmiclient -lgrass_dbmibase"
+      LIBS="-L$with_grass/lib $G_VECTLIBS $G_RASTLIBS -lgrass_gproj -lgrass_vask -lgrass_gmath -lgrass_gis -lgrass_datetime $LIBS"
+    fi
     GRASS_INCLUDE="-I$with_grass/include"
     GRASS_GISBASE="$with_grass"
     HAVE_GRASS=yes
@@ -2380,8 +2486,6 @@ else
   HAVE_INGRES=yes
   II_SYSTEM=$with_ingres
   INGRES_LIB="-L$II_SYSTEM/ingres/lib \
-	$II_SYSTEM/ingres/lib/iiclsadt.o \
-	$II_SYSTEM/ingres/lib/iiuseradt.o \
 	-liiapi.1 -lcompat.1 -lq.1 -lframe.1" 
   INGRES_INC=-I$II_SYSTEM/ingres/files
 fi
@@ -3032,7 +3136,7 @@ dnl ---------------------------------------------------------------------------
 dnl Check if geos library is available.
 dnl ---------------------------------------------------------------------------
 
-GEOS_INIT(2.2.0)
+GEOS_INIT(3.1.0)
 HAVE_GEOS_RESULT="no"
 if test "${HAVE_GEOS}" = "yes" ; then
 
@@ -3202,6 +3306,45 @@ fi
 AC_SUBST(HAVE_FREEXL,  $HAVE_FREEXL)
 AC_SUBST(FREEXL_INCLUDE,  $FREEXL_INCLUDE)
 
+
+dnl ---------------------------------------------------------------------------
+dnl Check if libjson-c is available.
+dnl ---------------------------------------------------------------------------
+
+AC_ARG_WITH(libjson-c,[  --with-libjson-c[=ARG]       Include libjson-c support (ARG=internal or libjson-c directory)],,)
+
+if test "$with_libjson_c" = "external" -o "$with_libjson_c" = "" -o "$with_libjson_c" = "yes" ; then
+  AC_CHECK_LIB(json-c,json_object_set_serializer,LIBJSONC_SETTING=external,LIBJSONC_SETTING=internal,)
+elif test "$with_libjson_c" = "internal" ; then
+  LIBJSONC_SETTING=internal
+elif test "$with_libjson_c" != "no"; then
+  LIBS="-L$with_libjson_c/lib $LIBS"
+  AC_CHECK_LIB(json-c,json_object_set_serializer,LIBJSONC_SETTING=external,LIBJSONC_SETTING=internal,-L$with_libjson_c/lib)
+else
+  AC_MSG_ERROR([libjson-c (internal or external) is required])
+fi
+
+if test "$LIBJSONC_SETTING" = "external" ; then
+  AC_MSG_RESULT([using pre-installed libjson-c])
+  LIBS="-ljson-c $LIBS"
+  if test "$with_libjson_c" != "" -a "$with_libjson_c" != "yes" -a "$with_libjson_c" != "external" ; then
+    JSON_INCLUDE="-I$with_libjson_c/include/json-c"
+  elif test -f "/usr/include/json-c/json.h"; then
+    JSON_INCLUDE="-I/usr/include/json-c"
+  elif test -f "/usr/local/include/json-c/json.h"; then
+    JSON_INCLUDE="-I/usr/local/include/json-c"
+  else
+    AC_MSG_ERROR([could not find json-c/json.h])
+  fi
+else
+    JSON_INCLUDE="-I\$(GDAL_ROOT)/ogr/ogrsf_frmts/geojson/libjson"
+    AC_MSG_RESULT([using internal libjson-c code])
+fi
+
+AC_SUBST(LIBJSONC_SETTING,$LIBJSONC_SETTING)
+AC_SUBST(JSON_INCLUDE,$JSON_INCLUDE)
+
+
 dnl ---------------------------------------------------------------------------
 dnl Check if we must enable PAM
 dnl ---------------------------------------------------------------------------
@@ -3250,8 +3393,18 @@ if test "$with_poppler" != "no" -a "$with_poppler" != ""; then
     echo '#include <poppler/Page.h>' >> testpoppler.cpp
     echo '#include <poppler/splash/SplashBitmap.h>' >> testpoppler.cpp
     echo 'int main(int argc, char** argv) { return &(((Page*)0x8000)->pageObj) == 0; } ' >> testpoppler.cpp
+
     if test -z "`${CXX} testpoppler.cpp -o testpoppler ${TEST_POPPLER_INC} ${TEST_POPPLER_LIB} 2>&1`" ; then
         HAVE_POPPLER=yes
+    else
+        # poppler 0.23.0 needs to be linked against pthread
+        TEST_POPPLER_LIB="${TEST_POPPLER_LIB} -lpthread"
+        if test -z "`${CXX} testpoppler.cpp -o testpoppler ${TEST_POPPLER_INC} ${TEST_POPPLER_LIB} 2>&1`" ; then
+            HAVE_POPPLER=yes
+        fi
+    fi
+
+    if test "$HAVE_POPPLER" = "yes"; then
         LIBS="${TEST_POPPLER_LIB} ${LIBS}"
         AC_MSG_RESULT([yes])
         POPPLER_INC=$TEST_POPPLER_INC

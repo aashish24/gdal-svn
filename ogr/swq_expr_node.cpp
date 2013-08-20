@@ -167,7 +167,8 @@ void swq_expr_node::ReverseSubExpressions()
 /*      Check argument types, etc.                                      */
 /************************************************************************/
 
-swq_field_type swq_expr_node::Check( swq_field_list *poFieldList )
+swq_field_type swq_expr_node::Check( swq_field_list *poFieldList,
+                                     int bAllowFieldsInSecondaryTables )
 
 {
 /* -------------------------------------------------------------------- */
@@ -180,9 +181,12 @@ swq_field_type swq_expr_node::Check( swq_field_list *poFieldList )
         int wrk_field_index, wrk_table_index;
         swq_field_type wrk_field_type;
 
-        wrk_field_index = 
-            swq_identify_field( string_value, poFieldList,
-                                &wrk_field_type, &wrk_table_index );
+        if( is_null )
+            wrk_field_index = -1;
+        else
+            wrk_field_index = 
+                swq_identify_field( string_value, poFieldList,
+                                    &wrk_field_type, &wrk_table_index );
         
         if( wrk_field_index >= 0 )
         {
@@ -215,7 +219,14 @@ swq_field_type swq_expr_node::Check( swq_field_list *poFieldList )
                       string_value );
 
             return SWQ_ERROR;
-            
+        }
+
+        if( !bAllowFieldsInSecondaryTables && table_index != 0 )
+        {
+            CPLError( CE_Failure, CPLE_AppDefined,
+                      "Cannot use field '%s' of a secondary table in this context",
+                      string_value );
+            return SWQ_ERROR;
         }
     }
     
@@ -243,7 +254,7 @@ swq_field_type swq_expr_node::Check( swq_field_list *poFieldList )
 
     for( i = 0; i < nSubExprCount; i++ )
     {
-        if( papoSubExpr[i]->Check(poFieldList) == SWQ_ERROR )
+        if( papoSubExpr[i]->Check(poFieldList, bAllowFieldsInSecondaryTables) == SWQ_ERROR )
             return SWQ_ERROR;
     }
     
@@ -291,7 +302,7 @@ void swq_expr_node::Dump( FILE * fp, int depth )
     const swq_operation *op_def = 
         swq_op_registrar::GetOperator( (swq_op) nOperation );
 
-    fprintf( fp, "%s%s\n", spaces, op_def->osName.c_str() );
+    fprintf( fp, "%s%s\n", spaces, op_def->pszName );
 
     for( i = 0; i < nSubExprCount; i++ )
         papoSubExpr[i]->Dump( fp, depth+1 );
@@ -371,11 +382,31 @@ char *swq_expr_node::Unparse( swq_field_list *field_list, char chColumnQuote )
         if( field_index != -1 
             && table_index < field_list->table_count 
             && table_index > 0 )
-            osExpr.Printf( "%s.%s", 
-                           field_list->table_defs[table_index].table_name,
-                           field_list->names[field_index] );
+        {
+            for(int i = 0; i < field_list->count; i++ )
+            {
+                if( field_list->table_ids[i] == table_index &&
+                    field_list->ids[i] == field_index )
+                {
+                    osExpr.Printf( "%s.%s",
+                                   field_list->table_defs[table_index].table_name,
+                                   field_list->names[i] );
+                    break;
+                }
+            }
+        }
         else if( field_index != -1 )
-            osExpr.Printf( "%s", field_list->names[field_index] );
+        {
+            for(int i = 0; i < field_list->count; i++ )
+            {
+                if( field_list->table_ids[i] == table_index &&
+                    field_list->ids[i] == field_index )
+                {
+                    osExpr.Printf( "%s", field_list->names[i] );
+                    break;
+                }
+            }
+        }
 
 
         for( int i = 0; i < (int) osExpr.size(); i++ )
@@ -449,7 +480,7 @@ char *swq_expr_node::Unparse( swq_field_list *field_list, char chColumnQuote )
             osExpr += ")";
         }
         osExpr += " ";
-        osExpr += poOp->osName;
+        osExpr += poOp->pszName;
         osExpr += " ";
         if (papoSubExpr[1]->eNodeType == SNT_COLUMN ||
             papoSubExpr[1]->eNodeType == SNT_CONSTANT)
@@ -493,7 +524,7 @@ char *swq_expr_node::Unparse( swq_field_list *field_list, char chColumnQuote )
         CPLAssert( nSubExprCount == 3 );
         osExpr.Printf( "%s %s (%s) AND (%s)",
                        apszSubExpr[0],
-                       poOp->osName.c_str(),
+                       poOp->pszName,
                        apszSubExpr[1],
                        apszSubExpr[2] );
         break;
@@ -526,7 +557,7 @@ char *swq_expr_node::Unparse( swq_field_list *field_list, char chColumnQuote )
         break;
 
       default: // function style.
-        osExpr.Printf( "%s(", poOp->osName.c_str() );
+        osExpr.Printf( "%s(", poOp->pszName );
         for( i = 0; i < nSubExprCount; i++ )
         {
             if( i > 0 )

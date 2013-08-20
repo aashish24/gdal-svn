@@ -45,7 +45,7 @@
 #endif
 
 /* Declaration of sqlite3_api structure */
-SQLITE_EXTENSION_INIT1
+static SQLITE_EXTENSION_INIT1
 
 /* The layout of fields is :
    0   : RegularField0
@@ -2342,9 +2342,19 @@ int CPL_DLL OGR2SQLITE_static_register (sqlite3 * hDB, char **pzErrMsg,
                                         const sqlite3_api_routines * pApi);
 CPL_C_END
 
+#ifndef WIN32
+extern const struct sqlite3_api_routines OGRSQLITE_static_routines;
+#endif
+
 int OGR2SQLITE_static_register (sqlite3 * hDB, char **pzErrMsg,
                                 const sqlite3_api_routines * pApi)
 {
+#ifndef WIN32
+    if( pApi->create_module == NULL )
+    {
+        pApi = &OGRSQLITE_static_routines;
+    }
+#endif
     SQLITE_EXTENSION_INIT2 (pApi);
 
     *pzErrMsg = NULL;

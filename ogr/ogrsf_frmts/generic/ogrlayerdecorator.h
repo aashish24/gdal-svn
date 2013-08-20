@@ -94,6 +94,8 @@ class OGRLayerDecorator : public OGRLayer
     virtual const char *GetGeometryColumn();
 
     virtual OGRErr      SetIgnoredFields( const char **papszFields );
+
+    OGRLayer* GetBaseLayer()    { return m_poDecoratedLayer; }
 };
 
 #endif // _OGRLAYERDECORATOR_H_INCLUDED

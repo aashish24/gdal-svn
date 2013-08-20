@@ -220,6 +220,9 @@ void OGRRegisterAll()
 #ifdef GFT_ENABLED
     RegisterOGRGFT();
 #endif
+#ifdef GME_ENABLED
+    RegisterOGRGME();
+#endif
 #ifdef SVG_ENABLED
     RegisterOGRSVG();
 #endif
@@ -252,5 +255,8 @@ void OGRRegisterAll()
 #endif
 #ifdef PDF_ENABLED
     RegisterOGRPDF();
+#endif
+#ifdef WALK_ENABLED
+    RegisterOGRWalk();
 #endif
 } /* OGRRegisterAll */
