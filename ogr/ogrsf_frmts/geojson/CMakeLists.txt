@@ -32,6 +32,7 @@ project ("lib${LIB_NAME}")
 include_directories(${GDAL_ROOT_SOURCE_DIR}/ogr)  
 include_directories(${GDAL_ROOT_SOURCE_DIR}/ogr/ogrsf_frmts)  
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libjson)
 
 set(LIB_HHEADERS
     ogrgeojsonreader.h
@@ -48,13 +49,13 @@ set(LIB_CSOURCES
 	ogrgeojsonreader.cpp
 	ogrgeojsonutils.cpp
 	ogrgeojsonwritelayer.cpp
-	ogrgeojsonwriter.cpp	
+	ogrgeojsonwriter.cpp
+    ogrtopojsonreader.cpp	
 )
 
-# TODO: Add support external json-c
 # option(OGR_USE_JSONC_INTERNAL "Set ON to use internal libjson-c" ON)
 # if(OGR_USE_JSONC_INTERNAL)
-	add_subdirectory(jsonc)
+	add_subdirectory(libjson)
 # else(OGR_USE_JSONC_INTERNAL)
 # endif(OGR_USE_JSONC_INTERNAL)
 

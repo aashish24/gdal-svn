@@ -93,6 +93,8 @@ set(LIB_HHEADERS ${LIB_INST_HEADERS}
     ogr_geos.h
     ogr_srs_esri_names.h
     swq.h
+    osr_cs_wkt.h
+    osr_cs_wkt_parser.h
 )
 
 set(LIB_CSOURCES
@@ -103,6 +105,7 @@ set(LIB_CSOURCES
     ogrcurve.cpp
     ogrfeature.cpp
     ogrfeaturedefn.cpp
+    ogrgeomfielddefn.cpp
     ogrfeaturestyle.cpp 
     ogrfielddefn.cpp
     ogrgeometry.cpp 
@@ -132,7 +135,9 @@ set(LIB_CSOURCES
     ogr_srs_proj4.cpp 
     ogr_srs_usgs.cpp
     ogr_srs_validate.cpp
-    ogr_srs_xml.cpp 
+    ogr_srs_xml.cpp
+    osr_cs_wkt.c    
+    osr_cs_wkt_parser.c
     swq.cpp 
     swq_expr_node.cpp 
     swq_op_general.cpp

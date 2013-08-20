@@ -44,19 +44,17 @@ set(LIB_HHEADERS
     minidriver_virtualearth.h
     minidriver_wms.h
     minidriver_worldwind.h
-    stdinc.h
     wmsdriver.h
     wmsmetadataset.h
 )
 
 set(LIB_CSOURCES
-    cache.cpp
-    dataset.cpp
+    gdalwmscache.cpp
+    gdalwmsdataset.cpp
     gdalhttp.cpp
     md5.cpp
     minidriver.cpp
-    rasterband.cpp
-    stuff.cpp
+    gdalwmsrasterband.cpp
     wmsdriver.cpp
     minidriver_wms.cpp
     minidriver_tileservice.cpp
@@ -65,6 +63,7 @@ set(LIB_CSOURCES
     minidriver_tiled_wms.cpp
     wmsmetadataset.cpp 
     minidriver_virtualearth.cpp
+    wmsutils.cpp
 )
 
 find_package(CURL REQUIRED)

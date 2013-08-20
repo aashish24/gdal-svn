@@ -13,16 +13,17 @@ typedef __int32 int32_t;
 typedef __int64 int64_t;
 #define INT64_MIN    ((int64_t)_I64_MIN)
 #define INT64_MAX    ((int64_t)_I64_MAX)
-#define PRId64 "I64d"
-#define SCNd64 "I64d"
 
 #else
-
+#include <stdint.h>
 #ifdef JSON_C_HAVE_INTTYPES_H
 #include <inttypes.h>
 #endif
 /* inttypes.h includes stdint.h */
 
 #endif
+
+#define PRId64 "I64d"
+#define SCNd64 "I64d"
 
 #endif
