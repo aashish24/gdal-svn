@@ -33,6 +33,8 @@ include_directories(${GDAL_ROOT_SOURCE_DIR}/gcore)
 include_directories(${GDAL_ROOT_SOURCE_DIR}/ogr/ogrsf_frmts)  
 
 set(LIB_HHEADERS
+	ogr_attrind.h
+	ogrsf_frmts.h
 	generic/ogr_gensql.h
 	generic/ogrlayerdecorator.h
 	generic/ogrlayerpool.h
@@ -156,8 +158,4 @@ set(GDAL_TARGET_OBJECTS ${GDAL_TARGET_OBJECTS} $<TARGET_OBJECTS:${LIB_NAME}> PAR
 set(GDAL_TARGET_LINK_LIB ${GDAL_TARGET_LINK_LIB} PARENT_SCOPE)
 add_library(${LIB_NAME} OBJECT ${LIB_HHEADERS} ${LIB_CSOURCES})
 
-if(WIN32)
-    install(FILES ${LIB_HHEADERS} DESTINATION ${GDAL_ROOT_SOURCE_DIR}/include/gdal)
-else(WIN32)
-    install(FILES ${LIB_HHEADERS} DESTINATION include/gdal)
-endif(WIN32)	
+install(FILES ${LIB_HHEADERS} DESTINATION include/gdal)

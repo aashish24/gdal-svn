@@ -38,12 +38,8 @@ macro(apps_macro APP_NAME APP_CSOURCES APP_HHEADERS)
 		)
 
 	target_link_libraries(${APP_NAME} ${GDAL_LIB_NAME})
-		
-	if(WIN32)
-		install(TARGETS ${APP_NAME} DESTINATION ${GDAL_ROOT_SOURCE_DIR}/bin)
-	else()
-		install(TARGETS ${APP_NAME} DESTINATION bin)
-	endif() 
+
+	install(TARGETS ${APP_NAME} DESTINATION bin)
 endmacro()
 
 
