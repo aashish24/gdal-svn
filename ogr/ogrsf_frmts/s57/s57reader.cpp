@@ -181,8 +181,6 @@ S57Reader::S57Reader( const char * pszFilename )
     bMissingWarningIssued = FALSE;
     bAttrWarningIssued = FALSE;
 
-    memset( apoFDefnByOBJL, 0, sizeof(apoFDefnByOBJL) );
-    
     Aall=0;                 // see RecodeByDSSI() function
     Nall=0;                 // see RecodeByDSSI() function
     needAallNallSetup=true; // see RecodeByDSSI() function
@@ -898,10 +896,8 @@ void S57Reader::ApplyObjectClassAttributes( DDFRecord * poRecord,
     for( iAttr = 0; iAttr < nAttrCount; iAttr++ )
     {
         int     nAttrId = poRecord->GetIntSubfield("ATTF",0,"ATTL",iAttr);
-        const char *pszAcronym;
         
-        if( nAttrId < 1 || nAttrId > poRegistrar->GetMaxAttrIndex() 
-            || (pszAcronym = poRegistrar->GetAttrAcronym(nAttrId)) == NULL )
+        if( poRegistrar->GetAttrInfo(nAttrId) == NULL )
         {
             if( !bAttrWarningIssued )
             {
@@ -933,6 +929,7 @@ void S57Reader::ApplyObjectClassAttributes( DDFRecord * poRecord,
         int iField;
         OGRFieldDefn *poFldDefn;
 
+        const char *pszAcronym = poRegistrar->GetAttrAcronym(nAttrId);
         iField = poFeature->GetDefnRef()->GetFieldIndex(pszAcronym);
         if( iField < 0 )
         {
@@ -980,10 +977,9 @@ void S57Reader::ApplyObjectClassAttributes( DDFRecord * poRecord,
     for( iAttr = 0; iAttr < nAttrCount; iAttr++ )
     {
         int     nAttrId = poRecord->GetIntSubfield("NATF",0,"ATTL",iAttr);
-        const char *pszAcronym;
+        const char *pszAcronym = poRegistrar->GetAttrAcronym(nAttrId);
 
-        if( nAttrId < 1 || nAttrId >= poRegistrar->GetMaxAttrIndex()
-            || (pszAcronym = poRegistrar->GetAttrAcronym(nAttrId)) == NULL )
+        if( pszAcronym == NULL )
         {
             static int bAttrWarningIssued = FALSE;
 
@@ -2422,7 +2418,8 @@ OGRFeatureDefn * S57Reader::FindFDefn( DDFRecord * poRecord )
     {
         int     nOBJL = poRecord->GetIntSubfield( "FRID", 0, "OBJL", 0 );
 
-        if( apoFDefnByOBJL[nOBJL] != NULL )
+        if( nOBJL < (int)apoFDefnByOBJL.size() 
+            && apoFDefnByOBJL[nOBJL] != NULL )
             return apoFDefnByOBJL[nOBJL];
 
         if( !poClassContentExplorer->SelectClass( nOBJL ) )
@@ -2523,7 +2520,12 @@ void S57Reader::AddFeatureDefn( OGRFeatureDefn * poFDefn )
     if( poRegistrar != NULL )
     {
         if( poClassContentExplorer->SelectClass( poFDefn->GetName() ) )
-            apoFDefnByOBJL[poClassContentExplorer->GetOBJL()] = poFDefn;
+        {
+            int nOBJL = poClassContentExplorer->GetOBJL();
+            if( nOBJL >= (int) apoFDefnByOBJL.size() )
+                apoFDefnByOBJL.resize(nOBJL+1);
+            apoFDefnByOBJL[nOBJL] = poFDefn;
+        }
     }
 }
 
@@ -2534,7 +2536,7 @@ void S57Reader::AddFeatureDefn( OGRFeatureDefn * poFDefn )
 /*      occur in this dataset.                                          */
 /************************************************************************/
 
-int S57Reader::CollectClassList(int *panClassCount, int nMaxClass )
+int S57Reader::CollectClassList(std::vector<int> &anClassCount)
 
 {
     int         bSuccess = TRUE;
@@ -2547,10 +2549,14 @@ int S57Reader::CollectClassList(int *panClassCount, int nMaxClass )
         DDFRecord *poRecord = oFE_Index.GetByIndex( iFEIndex );
         int     nOBJL = poRecord->GetIntSubfield( "FRID", 0, "OBJL", 0 );
 
-        if( nOBJL < 0 || nOBJL >= nMaxClass )
+        if( nOBJL < 0 )
             bSuccess = FALSE;
         else
-            panClassCount[nOBJL]++;
+        {
+            if( nOBJL >= (int) anClassCount.size() )
+                anClassCount.resize(nOBJL+1);
+            anClassCount[nOBJL]++;
+        }
 
     }
 

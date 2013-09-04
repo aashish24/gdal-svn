@@ -46,16 +46,7 @@ CPL_CVSID("$Id$");
 S57ClassRegistrar::S57ClassRegistrar()
 
 {
-    nClasses = 0;
-    papszClassesInfo = NULL;
-
     papszNextLine = NULL;
-    pachAttrClass = NULL;
-    pachAttrType = NULL;
-    panAttrIndex = NULL;
-    papszAttrNames = NULL;
-    papszAttrAcronym = NULL;
-    papapszAttrValues = NULL;
 }
 
 /************************************************************************/
@@ -65,23 +56,7 @@ S57ClassRegistrar::S57ClassRegistrar()
 S57ClassRegistrar::~S57ClassRegistrar()
 
 {
-    int i;
-
-    CSLDestroy( papszClassesInfo );
-
-    if( papszAttrNames )
-    {
-        for( i = 0; i < MAX_ATTRIBUTES; i++ )
-        {
-            CPLFree( papszAttrNames[i] );
-            CPLFree( papszAttrAcronym[i] );
-        }
-        CPLFree( papszAttrNames );
-        CPLFree( papszAttrAcronym );
-    }
-    CPLFree( pachAttrType );
-    CPLFree( pachAttrClass );
-    CPLFree( panAttrIndex );
+    nClasses = 0;
 }
 
 /************************************************************************/
@@ -247,25 +222,11 @@ int S57ClassRegistrar::LoadInfo( const char * pszDirectory,
 /* -------------------------------------------------------------------- */
 /*      Read and form string list.                                      */
 /* -------------------------------------------------------------------- */
-    
-    CSLDestroy( papszClassesInfo );
-    papszClassesInfo = (char **) CPLCalloc(sizeof(char *),MAX_CLASSES);
-
-    nClasses = 0;
-
-    while( nClasses < MAX_CLASSES
-           && (pszLine = ReadLine(fp)) != NULL )
+    apszClassesInfo.Clear();
+    while( (pszLine = ReadLine(fp)) != NULL )
     {
-        papszClassesInfo[nClasses] = CPLStrdup(pszLine);
-        if( papszClassesInfo[nClasses] == NULL )
-            break;
-
-        nClasses++;
+        apszClassesInfo.AddString(pszLine);
     }
-
-    if( nClasses == MAX_CLASSES )
-        CPLError( CE_Warning, CPLE_AppDefined,
-                  "MAX_CLASSES exceeded in S57ClassRegistrar::LoadInfo().\n" );
 
 /* -------------------------------------------------------------------- */
 /*      Cleanup, and establish state.                                   */
@@ -273,6 +234,7 @@ int S57ClassRegistrar::LoadInfo( const char * pszDirectory,
     if( fp != NULL )
         VSIFCloseL( fp );
 
+    nClasses = apszClassesInfo.size();
     if( nClasses == 0 )
         return FALSE;
 
@@ -316,21 +278,10 @@ int S57ClassRegistrar::LoadInfo( const char * pszDirectory,
     }
     
 /* -------------------------------------------------------------------- */
-/*      Prepare arrays for the per-attribute information.               */
-/* -------------------------------------------------------------------- */
-    nAttrMax = MAX_ATTRIBUTES-1;
-    papszAttrNames = (char **) CPLCalloc(sizeof(char *),MAX_ATTRIBUTES);
-    papszAttrAcronym = (char **) CPLCalloc(sizeof(char *),MAX_ATTRIBUTES);
-    //papapszAttrValues = (char ***) CPLCalloc(sizeof(char **),MAX_ATTRIBUTES);
-    pachAttrType = (char *) CPLCalloc(sizeof(char),MAX_ATTRIBUTES);
-    pachAttrClass = (char *) CPLCalloc(sizeof(char),MAX_ATTRIBUTES);
-    panAttrIndex = (GUInt16 *) CPLCalloc(sizeof(GUInt16),MAX_ATTRIBUTES);
-    
-/* -------------------------------------------------------------------- */
 /*      Read and form string list.                                      */
 /* -------------------------------------------------------------------- */
-    GUInt16         iAttr;
-    
+    int        iAttr;
+
     while( (pszLine = ReadLine(fp)) != NULL )
     {
         char    **papszTokens = CSLTokenizeStringComplex( pszLine, ",",
@@ -342,55 +293,49 @@ int S57ClassRegistrar::LoadInfo( const char * pszDirectory,
             continue;
         }
         
-        iAttr = (GUInt16) atoi(papszTokens[0]);
-        if( iAttr < 0 || iAttr >= nAttrMax
-            || papszAttrNames[iAttr] != NULL )
+        iAttr = atoi(papszTokens[0]);
+        if( iAttr >= (int) aoAttrInfos.size() )
+            aoAttrInfos.resize(iAttr+1);
+
+        if( iAttr < 0 || aoAttrInfos[iAttr] != NULL )
         {
-            CPLDebug( "S57", "Duplicate definition for attribute %d:%s", 
+            CPLDebug( "S57", 
+                      "Duplicate/corrupt definition for attribute %d:%s", 
                       iAttr, papszTokens[2] );
             continue;
         }
-        
-        papszAttrNames[iAttr] = CPLStrdup(papszTokens[1]);
-        papszAttrAcronym[iAttr] = CPLStrdup(papszTokens[2]);
-        pachAttrType[iAttr] = papszTokens[3][0];
-        pachAttrClass[iAttr] = papszTokens[4][0];
 
+        aoAttrInfos[iAttr] = new S57AttrInfo();
+        aoAttrInfos[iAttr]->osName = papszTokens[1];
+        aoAttrInfos[iAttr]->osAcronym = papszTokens[2];
+        aoAttrInfos[iAttr]->chType = papszTokens[3][0];
+        aoAttrInfos[iAttr]->chClass = papszTokens[4][0];
+        anAttrIndex.push_back(iAttr);
         CSLDestroy( papszTokens );
     }
 
     if( fp != NULL )
         VSIFCloseL( fp );
-    
-/* -------------------------------------------------------------------- */
-/*      Build unsorted index of attributes.                             */
-/* -------------------------------------------------------------------- */
-    nAttrCount = 0;
-    for( iAttr = 0; iAttr < nAttrMax; iAttr++ )
-    {
-        if( papszAttrAcronym[iAttr] != NULL )
-            panAttrIndex[nAttrCount++] = iAttr;
-    }
 
+    nAttrCount = anAttrIndex.size();
+    
 /* -------------------------------------------------------------------- */
 /*      Sort index by acronym.                                          */
 /* -------------------------------------------------------------------- */
     int         bModified;
-
     do
     {
         bModified = FALSE;
         for( iAttr = 0; iAttr < nAttrCount-1; iAttr++ )
         {
-            if( strcmp(papszAttrAcronym[panAttrIndex[iAttr]],
-                       papszAttrAcronym[panAttrIndex[iAttr+1]]) > 0 )
+            if( strcmp(aoAttrInfos[anAttrIndex[iAttr]]->osAcronym,
+                       aoAttrInfos[anAttrIndex[iAttr+1]]->osAcronym) > 0 )
             {
-                GInt16     nTemp;
+                int     nTemp;
 
-                nTemp = panAttrIndex[iAttr];
-                panAttrIndex[iAttr] = panAttrIndex[iAttr+1];
-                panAttrIndex[iAttr+1] = nTemp;
-
+                nTemp = anAttrIndex[iAttr];
+                anAttrIndex[iAttr] = anAttrIndex[iAttr+1];
+                anAttrIndex[iAttr+1] = nTemp;
                 bModified = TRUE;
             }
         }
@@ -422,7 +367,7 @@ int S57ClassContentExplorer::SelectClassByIndex( int nNewIndex )
 /* -------------------------------------------------------------------- */
     if( papapszClassesFields[nNewIndex] == NULL )
         papapszClassesFields[nNewIndex] = 
-            CSLTokenizeStringComplex( poRegistrar->papszClassesInfo[nNewIndex],
+            CSLTokenizeStringComplex( poRegistrar->apszClassesInfo[nNewIndex],
                                       ",", TRUE, TRUE );
 
     papszCurrentFields = papapszClassesFields[nNewIndex];
@@ -441,7 +386,7 @@ int S57ClassContentExplorer::SelectClass( int nOBJL )
 {
     for( int i = 0; i < poRegistrar->nClasses; i++ )
     {
-        if( atoi(poRegistrar->papszClassesInfo[i]) == nOBJL )
+        if( atoi(poRegistrar->apszClassesInfo[i]) == nOBJL )
             return SelectClassByIndex( i );
     }
 
@@ -475,7 +420,7 @@ int S57ClassContentExplorer::GetOBJL()
 
 {
     if( iCurrentClass >= 0 )
-        return atoi(poRegistrar->papszClassesInfo[iCurrentClass]);
+        return atoi(poRegistrar->apszClassesInfo[iCurrentClass]);
     else
         return -1;
 }
@@ -523,7 +468,7 @@ char **S57ClassContentExplorer::GetAttributeList( const char * pszType )
     
     CSLDestroy( papszTempResult );
     papszTempResult = NULL;
-    
+
     for( int iColumn = 3; iColumn < 6; iColumn++ )
     {
         if( pszType != NULL && iColumn == 3 && !EQUAL(pszType,"a") )
@@ -591,6 +536,18 @@ char **S57ClassContentExplorer::GetPrimitives()
 }
 
 /************************************************************************/
+/*                            GetAttrInfo()                             */
+/************************************************************************/
+
+const S57AttrInfo *S57ClassRegistrar::GetAttrInfo(int iAttr)
+{
+    if( iAttr < 0 || iAttr >= (int) aoAttrInfos.size() )
+        return NULL;
+    else 
+        return aoAttrInfos[iAttr];
+}
+
+/************************************************************************/
 /*                         FindAttrByAcronym()                          */
 /************************************************************************/
 
@@ -608,7 +565,7 @@ int    S57ClassRegistrar::FindAttrByAcronym( const char * pszName )
         
         iCandidate = (iStart + iEnd)/2;
         nCompareValue =
-            strcmp( pszName, papszAttrAcronym[panAttrIndex[iCandidate]] );
+            strcmp(pszName, aoAttrInfos[anAttrIndex[iCandidate]]->osAcronym);
 
         if( nCompareValue < 0 )
         {
@@ -619,7 +576,7 @@ int    S57ClassRegistrar::FindAttrByAcronym( const char * pszName )
             iStart = iCandidate+1;
         }
         else
-            return panAttrIndex[iCandidate];
+            return anAttrIndex[iCandidate];
     }
 
     return -1;
