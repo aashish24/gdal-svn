@@ -26,9 +26,9 @@
 
 cmake_minimum_required (VERSION 2.8.10)
 
-include_directories(${GDAL_ROOT_SOURCE_DIR}/gcore)
-include_directories(${GDAL_ROOT_SOURCE_DIR}/alg)
-include_directories(${GDAL_ROOT_SOURCE_DIR}/ogr)
+include_directories(${GDAL_ROOT_SOURCE_DIR}/gcore/)
+include_directories(${GDAL_ROOT_SOURCE_DIR}/alg/)
+include_directories(${GDAL_ROOT_SOURCE_DIR}/ogr/)
 
 option(GDAL_BUILD_APPS "Set ON to build apps" OFF)
 if(GDAL_BUILD_APPS)
@@ -67,6 +67,19 @@ if(GDAL_BUILD_APPS)
 
 	apps_macro("gdaladdo" "${GDALADDO_CSOURCES}" "${GDALADDO_HHEADERS}")	
     
+#gdal_grid   
+    set(gdal_grid_HHEADERS
+#        gdalgrid.h
+        commonutils.h    
+    )
+
+    set(gdal_grid_CSOURCES
+        gdal_grid.cpp
+        commonutils.cpp
+    )
+
+apps_macro("gdal_grid" "${gdal_grid_CSOURCES}" "${gdal_grid_HHEADERS}")
+    
 #gdal_translate    
 	include_directories(${GDAL_ROOT_SOURCE_DIR}/frmts/)
 	set(gdal_translate_HHEADERS
@@ -81,21 +94,24 @@ if(GDAL_BUILD_APPS)
     
 #gdalwarp
 	set(gdalwarp_HHEADERS
+        commonutils.h    
 	)
 
 	set(gdalwarp_CSOURCES
-		gdalwarp.cpp
-		commonutils.cpp
+		gdalwarp.cpp        
+        commonutils.cpp
 	)
 
 	apps_macro("gdalwarp" "${gdalwarp_CSOURCES}" "${gdalwarp_HHEADERS}")  
     
 #gdal_contour
 	set(gdal_contour_HHEADERS
+        commonutils.h
 	)
 
 	set(gdal_contour_CSOURCES
 		gdal_contour.cpp
+		commonutils.cpp
 	)
 
 	apps_macro("gdal_contour" "${gdal_contour_CSOURCES}" "${gdal_contour_HHEADERS}") 
