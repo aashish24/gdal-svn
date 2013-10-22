@@ -35,18 +35,20 @@ else(GDAL_USE_LIBZ_INTERNAL)
 	include_directories(${ZLIB_INCLUDE_DIRS})
 endif(GDAL_USE_LIBZ_INTERNAL)
 
-# set(LIB_HHEADERS
-	# crc32.h
-	# deflate.h
-	# inffast.h
-	# inffixed.h
-	# inflate.h
-	# inftrees.h
-	# trees.h
-	# zconf.h
-	# zlib.h
-	# zutil.h
-# )
+ set(LIB_HHEADERS
+	gdal_libtiff_symbol_rename.h
+	t4.h
+	tif_config.h
+	tif_dir.h
+	tif_fax3.h
+	tif_predict.h
+	tiff.h
+	tiffconf.h
+	tiffio.h
+	tiffiop.h
+    tiffvers.h
+    uvcode.h
+ )
 
 set(LIB_CSOURCES
 	tif_aux.c
@@ -93,4 +95,4 @@ set(LIB_CSOURCES
 # source_group("Source Files\\port" FILES ${LIB_CSOURCES})
 
 set(GDAL_TARGET_OBJECTS ${GDAL_TARGET_OBJECTS} $<TARGET_OBJECTS:${LIB_NAME}> PARENT_SCOPE)
-add_library(${LIB_NAME} OBJECT ${LIB_CSOURCES})	#${LIB_HHEADERS} 
+add_library(${LIB_NAME} OBJECT ${LIB_CSOURCES} ${LIB_HHEADERS} )

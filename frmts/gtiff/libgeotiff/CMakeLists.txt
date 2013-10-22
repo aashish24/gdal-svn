@@ -35,18 +35,21 @@ else(GDAL_USE_LIBTIFF_INTERNAL)
 	include_directories(${TIFF_INCLUDE_DIR})
 endif(GDAL_USE_LIBTIFF_INTERNAL)
 
-# set(LIB_HHEADERS
-	# crc32.h
-	# deflate.h
-	# inffast.h
-	# inffixed.h
-	# inflate.h
-	# inftrees.h
-	# trees.h
-	# zconf.h
-	# zlib.h
-	# zutil.h
-# )
+set(LIB_HHEADERS
+    cpl_serv.h
+    gdal_libgeotiff_symbol_rename.h
+    geo_config.h
+    geo_keyp.h
+    geo_normalize.h
+    geo_simpletags.h
+    geo_tiffp.h
+    geokeys.h
+    geonames.h
+    geotiff.h
+    geotiffio.h
+    geovalues.h
+    xtiffio.h
+)
 
 set(LIB_CSOURCES
 	xtiff.c
