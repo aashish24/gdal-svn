@@ -382,6 +382,7 @@ OGRLayer *OGRDataSource::CopyLayer( OGRLayer *poSrcLayer,
                       "Unable to translate feature %ld from layer %s.\n",
                       poFeature->GetFID(), poSrcDefn->GetName() );
             OGRFeature::DestroyFeature( poFeature );
+            CPLFree(panMap);
             return poDstLayer;
         }
 
@@ -393,6 +394,7 @@ OGRLayer *OGRDataSource::CopyLayer( OGRLayer *poSrcLayer,
         if( poDstLayer->CreateFeature( poDstFeature ) != OGRERR_NONE )
         {
             OGRFeature::DestroyFeature( poDstFeature );
+            CPLFree(panMap);
             return poDstLayer;
         }
 
@@ -427,10 +429,10 @@ OGRLayer *OGRDataSource::CopyLayer( OGRLayer *poSrcLayer,
 
             if( papoDstFeature[nFeatCount]->SetFrom( poFeature, panMap, TRUE ) != OGRERR_NONE )
             {
-                OGRFeature::DestroyFeature( poFeature );
                 CPLError( CE_Failure, CPLE_AppDefined,
                           "Unable to translate feature %ld from layer %s.\n",
                           poFeature->GetFID(), poSrcDefn->GetName() );
+                OGRFeature::DestroyFeature( poFeature );
                 bStopTransfer = TRUE;
                 break;
             }
@@ -758,7 +760,10 @@ OGRErr OGRDataSource::ProcessSQLDropIndex( const char *pszSQLCommand )
             {
                 eErr = poLayer->GetIndex()->DropIndex( i );
                 if( eErr != OGRERR_NONE )
+                {
+                    CSLDestroy(papszTokens);
                     return eErr;
+                }
             }
         }
 
@@ -1910,4 +1915,15 @@ void OGR_DS_SetStyleTable( OGRDataSourceH hDS, OGRStyleTableH hStyleTable )
     VALIDATE_POINTER0( hStyleTable, "OGR_DS_SetStyleTable" );
     
     ((OGRDataSource *) hDS)->SetStyleTable( (OGRStyleTable *) hStyleTable);
+}
+
+/************************************************************************/
+/*                         IsGenericSQLDialect()                        */
+/************************************************************************/
+
+int OGRDataSource::IsGenericSQLDialect(const char* pszDialect)
+{
+    return ( pszDialect != NULL && (EQUAL(pszDialect,"OGRSQL") ||
+                                    EQUAL(pszDialect,"SQLITE")) );
+
 }

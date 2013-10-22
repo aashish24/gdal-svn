@@ -2021,12 +2021,11 @@ static int GWKBilinearResampleNoMasksShort( GDALWarpKernel *poWK, int iBand,
 /*                        GWKCubicResample()                            */
 /*     Set of bicubic interpolators using cubic convolution.            */
 /************************************************************************/
-
 #define CubicConvolution(distance1,distance2,distance3,f0,f1,f2,f3) \
-   (  (   -f0 +     f1 - f2 + f3) * distance3                       \
-    + (2.0*(f0 - f1) + f2 - f3) * distance2                         \
-    + (   -f0          + f2     ) * distance1                       \
-    +               f1                         )
+     (             f1                                               \
+      + distance1*0.5*(f2 - f0)                                     \
+      + distance2*0.5*(2.0*f0 - 5.0*f1 + 4.0*f2 - f3)               \
+      + distance3*0.5*(3.0*(f1 - f2) + f3 - f0))
 
 static int GWKCubicResample( GDALWarpKernel *poWK, int iBand,
                              double dfSrcX, double dfSrcY,
@@ -2034,8 +2033,8 @@ static int GWKCubicResample( GDALWarpKernel *poWK, int iBand,
                              double *pdfReal, double *pdfImag )
 
 {
-    int     iSrcX = (int) floor( dfSrcX - 0.5 );
-    int     iSrcY = (int) floor( dfSrcY - 0.5 );
+    int     iSrcX = (int) (dfSrcX - 0.5);
+    int     iSrcY = (int) (dfSrcY - 0.5);
     int     iSrcOffset = iSrcX + iSrcY * poWK->nSrcXSize;
     double  dfDeltaX = dfSrcX - 0.5 - iSrcX;
     double  dfDeltaY = dfSrcY - 0.5 - iSrcY;
@@ -2099,8 +2098,8 @@ static int GWKCubicResampleNoMasksByte( GDALWarpKernel *poWK, int iBand,
                                         GByte *pbValue )
 
 {
-    int     iSrcX = (int) floor( dfSrcX - 0.5 );
-    int     iSrcY = (int) floor( dfSrcY - 0.5 );
+    int     iSrcX = (int) (dfSrcX - 0.5);
+    int     iSrcY = (int) (dfSrcY - 0.5);
     int     iSrcOffset = iSrcX + iSrcY * poWK->nSrcXSize;
     double  dfDeltaX = dfSrcX - 0.5 - iSrcX;
     double  dfDeltaY = dfSrcY - 0.5 - iSrcY;
@@ -2146,8 +2145,8 @@ static int GWKCubicResampleNoMasksShort( GDALWarpKernel *poWK, int iBand,
                                          GInt16 *piValue )
 
 {
-    int     iSrcX = (int) floor( dfSrcX - 0.5 );
-    int     iSrcY = (int) floor( dfSrcY - 0.5 );
+    int     iSrcX = (int) (dfSrcX - 0.5);
+    int     iSrcY = (int) (dfSrcY - 0.5);
     int     iSrcOffset = iSrcX + iSrcY * poWK->nSrcXSize;
     double  dfDeltaX = dfSrcX - 0.5 - iSrcX;
     double  dfDeltaY = dfSrcY - 0.5 - iSrcY;
@@ -2175,8 +2174,16 @@ static int GWKCubicResampleNoMasksShort( GDALWarpKernel *poWK, int iBand,
                 (double)((GInt16 *)poWK->papabySrcImage[iBand])[iOffset + 2]);
     }
 
-    *piValue = (GInt16)CubicConvolution(dfDeltaY, dfDeltaY2, dfDeltaY3,
-                        adfValue[0], adfValue[1], adfValue[2], adfValue[3]);
+    double dfValue = CubicConvolution(
+        dfDeltaY, dfDeltaY2, dfDeltaY3,
+        adfValue[0], adfValue[1], adfValue[2], adfValue[3]);
+    
+    if ( dfValue < -32768.0 )
+        *piValue = -32768;
+    else if ( dfValue > 32767.0 )
+        *piValue = 32767;
+    else
+        *piValue = (GInt16)floor(0.5 + dfValue);
     
     return TRUE;
 }

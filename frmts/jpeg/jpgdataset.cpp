@@ -155,6 +155,7 @@ protected:
 
     int    bHasReadEXIFMetadata;
     int    bHasReadXMPMetadata;
+    int    bHasReadICCMetadata;
     char   **papszMetadata;
     char   **papszSubDatasets;
     int	   bigendian;
@@ -174,6 +175,7 @@ protected:
     virtual int GetOutColorSpace() = 0;
 
     int    EXIFInit(VSILFILE *);
+    void   ReadICCProfile();
 
     int    nQLevel;
 
@@ -452,8 +454,11 @@ char  **JPGDatasetCommon::GetMetadata( const char * pszDomain )
         (pszDomain == NULL || EQUAL(pszDomain, "")))
         ReadEXIFMetadata();
     if (eAccess == GA_ReadOnly && !bHasReadXMPMetadata &&
-        (pszDomain != NULL && EQUAL(pszDomain, "xml:XMP")))
+        pszDomain != NULL && EQUAL(pszDomain, "xml:XMP"))
         ReadXMPMetadata();
+    if (eAccess == GA_ReadOnly && !bHasReadICCMetadata &&
+        pszDomain != NULL && EQUAL(pszDomain, "COLOR_PROFILE"))
+        ReadICCProfile();
     return GDALPamDataset::GetMetadata(pszDomain);
 }
 
@@ -469,7 +474,165 @@ const char *JPGDatasetCommon::GetMetadataItem( const char * pszName,
         (pszDomain == NULL || EQUAL(pszDomain, "")) &&
         pszName != NULL && EQUALN(pszName, "EXIF_", 5))
         ReadEXIFMetadata();
+    if (eAccess == GA_ReadOnly && !bHasReadICCMetadata &&
+        pszDomain != NULL && EQUAL(pszDomain, "COLOR_PROFILE"))
+        ReadICCProfile();
     return GDALPamDataset::GetMetadataItem(pszName, pszDomain);
+}
+
+/************************************************************************/
+/*                        ReadICCProfile()                              */
+/*                                                                      */
+/*                 Read ICC Profile from APP2 data                      */
+/************************************************************************/
+void JPGDatasetCommon::ReadICCProfile()
+{
+    if (bHasReadICCMetadata)
+        return;
+    bHasReadICCMetadata = TRUE;
+
+    vsi_l_offset nCurOffset = VSIFTellL(fpImage);
+
+    int nTotalSize = 0;
+    int nChunkCount = -1;
+    int anChunkSize[256];
+    char *apChunk[256];
+
+    memset(anChunkSize, 0, 256 * sizeof(int));
+    memset(apChunk, 0, 256 * sizeof(char*));
+
+/* -------------------------------------------------------------------- */
+/*      Search for APP2 chunk.                                          */
+/* -------------------------------------------------------------------- */
+    GByte abyChunkHeader[18];
+    int nChunkLoc = 2;
+    bool bOk = true;
+
+    for( ; TRUE; ) 
+    {
+        if( VSIFSeekL( fpImage, nChunkLoc, SEEK_SET ) != 0 )
+            break;
+
+        if( VSIFReadL( abyChunkHeader, sizeof(abyChunkHeader), 1, fpImage ) != 1 )
+            break;
+
+        if( abyChunkHeader[0] != 0xFF )
+            break; // Not a valid tag
+
+        if (abyChunkHeader[1] == 0xD9)
+            break; // End of image
+
+        if ((abyChunkHeader[1] >= 0xD0) && (abyChunkHeader[1] <= 0xD8))
+        {
+            // Restart tags have no length
+            nChunkLoc += 2;
+            continue;
+        }
+
+        int nChunkLength = abyChunkHeader[2] * 256 + abyChunkHeader[3];
+
+        if( abyChunkHeader[1] == 0xe2
+            && memcmp((const char *) abyChunkHeader + 4,"ICC_PROFILE\0",12) == 0 )
+        {
+            /* Get length and segment ID */
+            /* Header: */
+            /* APP2 tag: 2 bytes */
+            /* App Length: 2 bytes */
+            /* ICC_PROFILE\0 tag: 12 bytes */
+            /* Segment index: 1 bytes */
+            /* Total segments: 1 bytes */
+            int nICCChunkLength = nChunkLength - 16;
+            int nICCChunkID = abyChunkHeader[16];
+            int nICCMaxChunkID = abyChunkHeader[17];
+
+            if (nChunkCount == -1)
+                nChunkCount = nICCMaxChunkID;
+
+            /* Check that all max segment counts are the same */
+            if (nICCMaxChunkID != nChunkCount)
+            {
+                bOk = false;
+                break;
+            }
+
+            /* Check that no segment ID is larger than the total segment count */
+            if ((nICCChunkID > nChunkCount) || (nICCChunkID == 0) || (nChunkCount == 0)) 
+            {
+                bOk = false;
+                break;
+            }
+
+            /* Check if ICC segment already loaded */
+            if (apChunk[nICCChunkID-1] != NULL)
+            {
+                bOk = false;
+                break;
+            }
+
+            /* Load it */
+            apChunk[nICCChunkID-1] = (char*)VSIMalloc(nICCChunkLength);
+            anChunkSize[nICCChunkID-1] = nICCChunkLength;
+
+            if( VSIFReadL( apChunk[nICCChunkID-1], nICCChunkLength, 1, fpImage ) != 1 )
+            {
+                bOk = false;
+                break;
+            }
+        }
+
+        nChunkLoc += 2 + abyChunkHeader[2] * 256 + abyChunkHeader[3];
+    }
+
+    /* Get total size and verify that there are no missing segments */
+    if (bOk)
+    {
+        for(int i = 0; i < nChunkCount; i++)
+        {
+            if (apChunk[i] == NULL)
+            {
+                /* Missing segment... abort */
+                bOk = false;
+                break;
+                
+            }
+            nTotalSize += anChunkSize[i];
+        }
+    }
+
+    /* Merge all segments together and set metadata */
+    if (bOk && nChunkCount > 0)
+    {
+        char *pBuffer = (char*)VSIMalloc(nTotalSize);
+        char *pBufferPtr = pBuffer;
+        for(int i = 0; i < nChunkCount; i++)
+        {
+            memcpy(pBufferPtr, apChunk[i], anChunkSize[i]);
+            pBufferPtr += anChunkSize[i];
+        }
+
+        /* Escape the profile */
+        char *pszBase64Profile = CPLBase64Encode(nTotalSize, (const GByte*)pBuffer);
+
+        /* Avoid setting the PAM dirty bit just for that */
+        int nOldPamFlags = nPamFlags;
+
+        /* Set ICC profile metadata */
+        SetMetadataItem( "SOURCE_ICC_PROFILE", pszBase64Profile, "COLOR_PROFILE" );
+
+        nPamFlags = nOldPamFlags;
+
+        VSIFree(pBuffer);
+        CPLFree(pszBase64Profile);
+    }
+
+    /* Cleanup */
+    for(int i = 0; i < nChunkCount; i++)
+    {
+        if (apChunk[i] != NULL)
+            VSIFree(apChunk[i]);
+    }
+
+    VSIFSeekL( fpImage, nCurOffset, SEEK_SET );
 }
 
 /************************************************************************/
@@ -918,6 +1081,7 @@ JPGDatasetCommon::JPGDatasetCommon()
 
     bHasReadEXIFMetadata = FALSE;
     bHasReadXMPMetadata = FALSE;
+    bHasReadICCMetadata = FALSE;
     papszMetadata   = NULL;
     papszSubDatasets= NULL;
     nExifOffset     = -1;
@@ -1843,14 +2007,15 @@ GDALDataset *JPGDataset::Open( const char* pszFilename, char** papszSiblingFiles
             poDS->eGDALColorSpace = JCS_RGB;
             poDS->nBands = 3;
             poDS->SetMetadataItem( "SOURCE_COLOR_SPACE", "YCbCrK", "IMAGE_STRUCTURE" );
+
+            /* libjpeg does the translation from YCrCbK -> CMYK internally */
+            /* and we'll do the translation to RGB in IReadBlock() */
+            poDS->sDInfo.out_color_space = JCS_CMYK;
         }
         else
         {
             poDS->nBands = 4;
         }
-        /* libjpeg does the translation from YCrCbK -> CMYK internally */
-        /* and we'll do the translation to RGB in IReadBlock() */
-        poDS->sDInfo.out_color_space = JCS_CMYK;
     }
     else
     {
@@ -2166,6 +2331,55 @@ void JPGDataset::ErrorExit(j_common_ptr cinfo)
 
     /* Return control to the setjmp point */
     longjmp(*setjmp_buffer, 1);
+}
+
+/************************************************************************/
+/*                           JPGAddICCProfile()                         */
+/*                                                                      */
+/*      This function adds an ICC profile to a JPEG file.               */
+/************************************************************************/
+
+static void JPGAddICCProfile( struct jpeg_compress_struct *pInfo, const char *pszICCProfile )
+{
+    if( pszICCProfile == NULL )
+        return;
+
+    /* Write out each segment of the ICC profile */
+    char *pEmbedBuffer = CPLStrdup(pszICCProfile);
+    GInt32 nEmbedLen = CPLBase64DecodeInPlace((GByte*)pEmbedBuffer);
+    char *pEmbedPtr = pEmbedBuffer;
+    char const * const paHeader = "ICC_PROFILE";
+    int nSegments = (nEmbedLen + 65518) / 65519;
+    int nSegmentID = 1;
+
+    while( nEmbedLen != 0)
+    {
+        /* 65535 - 16 bytes for header = 65519 */
+        int nChunkLen = (nEmbedLen > 65519)?65519:nEmbedLen;
+        nEmbedLen -= nChunkLen;
+
+        /* write marker and length. */
+        jpeg_write_m_header(pInfo, JPEG_APP0 + 2,
+			        (unsigned int) (nChunkLen + 14));
+
+        /* Write identifier */
+        for(int i = 0; i < 12; i++)
+            jpeg_write_m_byte(pInfo, paHeader[i]);
+
+        /* Write ID and max ID */
+        jpeg_write_m_byte(pInfo, nSegmentID);
+        jpeg_write_m_byte(pInfo, nSegments);
+
+        /* Write ICC Profile */
+        for(int i = 0; i < nChunkLen; i++)
+            jpeg_write_m_byte(pInfo, pEmbedPtr[i]);
+
+        nSegmentID++;
+
+        pEmbedPtr += nChunkLen;
+    }
+
+    CPLFree(pEmbedBuffer);        
 }
 
 #if !defined(JPGDataset)
@@ -2531,6 +2745,16 @@ JPGDataset::CreateCopy( const char * pszFilename, GDALDataset *poSrcDS,
     jpeg_start_compress( &sCInfo, TRUE );
 
 /* -------------------------------------------------------------------- */
+/*      Save ICC profile if available                                   */
+/* -------------------------------------------------------------------- */
+    const char *pszICCProfile = CSLFetchNameValue(papszOptions, "SOURCE_ICC_PROFILE");
+    if (pszICCProfile == NULL)
+        pszICCProfile = poSrcDS->GetMetadataItem( "SOURCE_ICC_PROFILE", "COLOR_PROFILE" );
+
+    if (pszICCProfile != NULL)
+        JPGAddICCProfile( &sCInfo, pszICCProfile );
+
+/* -------------------------------------------------------------------- */
 /*      Does the source have a mask?  If so, we will append it to the   */
 /*      jpeg file after the imagery.                                    */
 /* -------------------------------------------------------------------- */
@@ -2715,6 +2939,7 @@ void GDALRegister_JPEG()
 "       <Value>RGB1</Value>"
 "   </Option>"
 #endif
+"   <Option name='SOURCE_ICC_PROFILE' type='string'/>\n"
 "</CreationOptionList>\n" );
 
         poDriver->SetMetadataItem( GDAL_DCAP_VIRTUALIO, "YES" );

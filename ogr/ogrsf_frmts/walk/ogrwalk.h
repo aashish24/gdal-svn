@@ -41,8 +41,7 @@
 /************************************************************************/
 
 OGRErr Binary2WkbGeom(unsigned char *p, WKBGeometry* geom, int nBuffer);
-long SZWKBGeomSize(WKBGeometry* pWalkWKBGeometry);
-OGRBoolean WalkGeom2Wkb(unsigned char* pOgcWkb, WKBGeometry* geom);
+OGRErr TranslateWalkGeom(OGRGeometry **ppoGeom, WKBGeometry* geom);
 void DeleteWKBGeometry(WKBGeometry &obj);
 
 /************************************************************************/
@@ -86,8 +85,6 @@ public:
     OGRFeature *        GetNextRawFeature();
 
     OGRFeatureDefn *    GetLayerDefn() { return poFeatureDefn; }
-
-    virtual OGRSpatialReference *GetSpatialRef();
     
     int         TestCapability( const char * ) { return FALSE; }
 

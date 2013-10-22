@@ -579,7 +579,16 @@ int OGRSQLiteDataSource::Create( const char * pszNameIn, char **papszOptions )
             OGRSQLiteGetSpatialiteVersionNumber() >= 40 )
             osCommand =  "SELECT InitSpatialMetadata('NONE')";
         else
-            osCommand =  "SELECT InitSpatialMetadata()";
+        {
+            /* Since spatialite 4.1, InitSpatialMetadata() is no longer run */
+            /* into a transaction, which makes population of spatial_ref_sys */
+            /* from EPSG awfully slow. We have to use InitSpatialMetadata(1) */
+            /* to run within a transaction */
+            if( OGRSQLiteGetSpatialiteVersionNumber() >= 41 )
+                osCommand =  "SELECT InitSpatialMetadata(1)";
+            else
+                osCommand =  "SELECT InitSpatialMetadata()";
+        }
         rc = sqlite3_exec( hDB, osCommand, NULL, NULL, &pszErrMsg );
         if( rc != SQLITE_OK )
         {
@@ -1712,10 +1721,10 @@ OGRLayer * OGRSQLiteDataSource::ExecuteSQL( const char *pszSQLCommand,
         
     CPLString osSQL = pszSQLCommand;
     poLayer = new OGRSQLiteSelectLayer( this, osSQL, hSQLStmt,
-                                        bUseStatementForGetNextFeature, bEmptyLayer );
+                                        bUseStatementForGetNextFeature, bEmptyLayer, TRUE );
 
     if( poSpatialFilter != NULL )
-        poLayer->SetSpatialFilter( poSpatialFilter );
+        poLayer->SetSpatialFilter( 0, poSpatialFilter );
     
     return poLayer;
 }
@@ -2796,7 +2805,18 @@ int OGRSQLiteDataSource::FetchSRSId( OGRSpatialReference * poSRS )
 /*      If there is no SRS ID with such auth_srid, use it as SRS ID.    */
 /* -------------------------------------------------------------------- */
         if ( nRowCount < 1 )
+        {
             nSRSId = atoi(pszAuthorityCode);
+            /* The authority code might be non numeric, e.g. IGNF:LAMB93 */
+            /* in which case we might fallback to the fake OGR authority */
+            /* for spatialite, since its auth_srid is INTEGER */
+            if( nSRSId == 0 )
+            {
+                nSRSId = nUndefinedSRID;
+                if( bIsSpatiaLiteDB )
+                    pszAuthorityName = NULL;
+            }
+        }
         sqlite3_free_table(papszResult);
     }
 

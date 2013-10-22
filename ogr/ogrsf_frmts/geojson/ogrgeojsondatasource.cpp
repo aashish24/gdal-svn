@@ -166,7 +166,7 @@ int OGRGeoJSONDataSource::GetLayerCount()
 
 OGRLayer* OGRGeoJSONDataSource::GetLayer( int nLayer )
 {
-    if( 0 <= nLayer || nLayer < nLayers_ )
+    if( 0 <= nLayer && nLayer < nLayers_ )
     {
         return papoLayers_[nLayer];
     }
@@ -505,7 +505,7 @@ void OGRGeoJSONDataSource::LoadLayers()
 /*      Is it ESRI Feature Service data ?                               */
 /* -------------------------------------------------------------------- */
     if ( strstr(pszGeoData_, "esriGeometry") ||
-         strstr(pszGeoData_, "esriFieldTypeOID") )
+         strstr(pszGeoData_, "esriFieldType") )
     {
         OGRESRIJSONReader reader;
         err = reader.Parse( pszGeoData_ );

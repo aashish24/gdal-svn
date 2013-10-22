@@ -54,6 +54,8 @@ OGROSMLayer::OGROSMLayer(OGROSMDataSource* poDS, const char* pszName )
 
     poSRS = new OGRSpatialReference();
     poSRS->SetWellKnownGeogCS("WGS84");
+    if( poFeatureDefn->GetGeomFieldCount() != 0 )
+        poFeatureDefn->GetGeomFieldDefn(0)->SetSpatialRef(poSRS);
 
     nFeatureArraySize = 0;
     nFeatureArrayMaxSize = 0;
@@ -290,7 +292,6 @@ int  OGROSMLayer::AddToArray(OGRFeature* poFeature)
                                 nFeatureArrayMaxSize * sizeof(OGRFeature*));
         if (papoNewFeatures == NULL)
         {
-            delete poFeature;
             return FALSE;
         }
         papoFeatures = papoNewFeatures;
