@@ -58,6 +58,8 @@ set(LIB_CSOURCES
 )
 #need to compile
 #add_subdirectory(generic)
+add_definitions(-DSXF_ENABLED)
+add_subdirectory(sxf)
 
 add_definitions(-DTAB_ENABLED)
 add_subdirectory(mitab)

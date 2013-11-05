@@ -448,6 +448,7 @@ void CPL_DLL RegisterOGRElastic();
 void CPL_DLL RegisterOGRPDF();
 void CPL_DLL RegisterOGRWalk();
 void CPL_DLL RegisterOGRCartoDB();
+void CPL_DLL RegisterOGRSXF();
 CPL_C_END
 
 
