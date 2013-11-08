@@ -112,13 +112,13 @@ OGRSXFLayer::OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialRefer
             GByte type = *(GByte *)(psRecordBuf + attributeOffset);
             attributeOffset += 1;
 
-            GByte scale = *(GByte *)(psRecordBuf + attributeOffset);
+            char scale = *(char *)(psRecordBuf + attributeOffset);
             attributeOffset += 1;
 
             unicClassifiers.insert(code);
 
             CPLString oFieldName;
-            oFieldName.Printf("%d", code);
+            oFieldName.Printf("SEMCODE_%d", code);
 
             OGRFieldDefn  oField( oFieldName, OFTString );
             oField.SetWidth(10);
@@ -426,11 +426,11 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 				GByte characterType = *(GByte *)(psSemanticsdBuf+offset);
 				offset += 1;
 
-				GByte scale = *(GByte *)(psSemanticsdBuf+offset);
+                char scale = *(char *)(psSemanticsdBuf+offset);
 				offset += 1;
 			
 				CPLString oFieldName;
-				oFieldName.Printf("%d",characterCode);
+                oFieldName.Printf("SEMCODE_%d",characterCode);
 				CPLString oFieldValue;
 
 				size_t byte_count = 0;
@@ -447,10 +447,10 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 					}
 					case sctOneByte:
 					{
-						char * value = (char*) CPLMalloc( 1 );
-						memcpy(value, psSemanticsdBuf+offset,1);
-						char d = *(char *)(value);
-						oFieldValue.Printf("%d",d);
+                        double d = *(GByte *)(psSemanticsdBuf+offset);
+                        d *= std::pow(10.0, (double)scale);
+
+                        oFieldValue.Printf("%f",d);
 						poFeature->SetField(oFieldName, oFieldValue);
 
 						offset += 1;					
@@ -458,10 +458,10 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 					}
 					case sctTwoByte:
 					{
-						char * value = (char*) CPLMalloc( 2 );
-						memcpy(value, psSemanticsdBuf+offset,2);
-						GInt16 d = *(GInt16 *)(value);
-						oFieldValue.Printf("%d",d);
+                        double d = *(GInt16 *)(psSemanticsdBuf+offset);
+                        d *= std::pow(10.0, (double)scale);
+
+                        oFieldValue.Printf("%f",d);
 						poFeature->SetField(oFieldName, oFieldValue);
 
 						offset += 2;
@@ -469,10 +469,10 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 					}
 					case sctForeByte:
 					{
-						char * value = (char*) CPLMalloc( 4 );
-						memcpy(value, psSemanticsdBuf+offset,4);
-						GInt32 d = *(GInt32 *)(value);
-						oFieldValue.Printf("%d",d);
+                        double d = *(GInt32 *)(psSemanticsdBuf+offset);
+                        d *= std::pow(10.0, (double)scale);
+
+                        oFieldValue.Printf("%f",d);
 						poFeature->SetField(oFieldName, oFieldValue);
 
 						offset += 4;
@@ -480,10 +480,10 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 					}
 					case sctEightByte:
 					{
-						char * value = (char*) CPLMalloc( 8 );
-						memcpy(value, psSemanticsdBuf+offset,8);
-						double d = *(double *)(value);
-						oFieldValue.Printf("%f",d);
+                        double d = *(double *)(psSemanticsdBuf+offset);
+                        d *= std::pow(10.0, (double)scale);
+
+                        oFieldValue.Printf("%f",d);
 						poFeature->SetField(oFieldName, oFieldValue);
 
 						offset += 8;
