@@ -32,6 +32,7 @@
 
 #include <set>
 #include <vector>
+#include <map>
 
 #include "ogrsf_frmts.h"
 #include "org_sxf_defs.h"
@@ -51,7 +52,7 @@ typedef enum org_sxf_geometry_type
 } OGRsxfGeometryType;
 
 /**
- * Attribute header
+ * Semantics attribute header
  */
 struct AttributeSXFOBJ
 {
@@ -66,8 +67,21 @@ struct AttributeSXFOBJ
 		else
 			return false;
 	}
-} ;
+};
+
 typedef std::set<AttributeSXFOBJ> SetOfAttributesSXFOBJ;
+
+typedef std::map<GUInt32, std::string> RSCObjects;
+
+struct RSCLayer
+{
+    GByte szLayerId;
+    std::string szLayerName;
+    RSCObjects rscObjects;
+};
+
+typedef std::map<GByte, RSCLayer> RSCLayers;
+
 
 /************************************************************************/
 /*                         OGRSXFLayer                                */
@@ -75,8 +89,7 @@ typedef std::set<AttributeSXFOBJ> SetOfAttributesSXFOBJ;
 class OGRSXFLayer : public OGRLayer
 {
 protected:
-	//OGRFeatureDefn*    poFeatureDefn;
-	std::auto_ptr<OGRFeatureDefn> poFeatureDefn;
+    OGRFeatureDefn*    poFeatureDefn;
     std::auto_ptr<OGRSpatialReference> poSRS;
 
 	VSILFILE*          fpSXF;
@@ -86,10 +99,12 @@ protected:
 	int                bIncorrectFType;
 	int                bIncorrectFClassificator;
 
-	const GInt32 objectsClassificator;
-	const vsi_l_offset firstObjectOffset;
+    std::set<GInt32> objectsClassificators;
+    vsi_l_offset firstObjectOffset;
 	vsi_l_offset lastObjectOffset;
 	
+    RSCLayer*  oRSCLayer;
+
 	RecordSXFPSP  oSXFPSP;
     RecordSXFDSC  oSXFDSC;
 
@@ -104,13 +119,13 @@ protected:
 	OGRFeature *TranslatePolygon ( RecordSXFOBJ  oSXFObj, char * psBuff );
 	OGRFeature *TranslateLine ( RecordSXFOBJ  oSXFObj, char * psBuff );
 public:
-	OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialReference *sr, std::auto_ptr<OGRFeatureDefn> featureDefn,  RecordSXFPSP&  sxfP, RecordSXFDSC&  sxfD, GInt32 objCl, vsi_l_offset foo);
-	~OGRSXFLayer();
+    OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialReference& sr, RecordSXFPSP&  sxfP, RecordSXFDSC&  sxfD, std::set<GInt32> objCls, RSCLayer*  rscLayer);
+    ~OGRSXFLayer();
 
 	virtual void                ResetReading();
     virtual OGRFeature *        GetNextFeature();
 
-	virtual OGRFeatureDefn *    GetLayerDefn() { return poFeatureDefn.get();}
+    virtual OGRFeatureDefn *    GetLayerDefn() { return poFeatureDefn;}
 
     virtual int                 TestCapability( const char * );
 
@@ -127,10 +142,15 @@ class OGRSXFDataSource : public OGRDataSource
     char*               pszName;
 
     OGRLayer**          papoLayers;
-    int                 nLayers;
+    size_t              nLayers;
 
     VSILFILE* fpSXF;
+    VSILFILE* fpRSC;
 
+    RSCLayers   rscLayers;
+
+    void CreateLayers(RecordSXFPSP  &oSXFPSP, RecordSXFDSC &oSXFDSC, OGRSpatialReference &poSRS);
+    void ReadRSCLayers(RecordRSCHEAD &RSCFileHeader);
   public:
                         OGRSXFDataSource();
                         ~OGRSXFDataSource();

@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
  * $Id: ogr_sxflayer.cpp  $
  *
  * Project:  SXF Translator
@@ -41,23 +41,135 @@ CPL_CVSID("$Id: ogrsxflayer.cpp $");
 /*                        OGRSXFLayer()                                 */
 /************************************************************************/
 
-OGRSXFLayer::OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, 
-							OGRSpatialReference *sr, std::auto_ptr<OGRFeatureDefn> featureDefn,
-							RecordSXFPSP&  oSXFP, RecordSXFDSC&  oSXFD, 
-							GInt32 objCl, vsi_l_offset foo):
-	poSRS(sr),
-	poFeatureDefn(featureDefn),
-	objectsClassificator(objCl),
-	firstObjectOffset(foo),
-	lastObjectOffset(foo)
+OGRSXFLayer::OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialReference &sr, RecordSXFPSP&  oSXFP, RecordSXFDSC&  oSXFD, std::set<GInt32> objCls, RSCLayer*  rscLayer)
+    : poSRS(new OGRSpatialReference(sr)),
+      oRSCLayer(rscLayer),
+      objectsClassificators(objCls)
 {
+    poFeatureDefn =new OGRFeatureDefn(pszLayerName);
+
     fpSXF = fp;
     oSXFPSP = oSXFP;
     oSXFDSC = oSXFD;
     nNextFID = 0;
     bIncorrectFType = FALSE;
-	bIncorrectFClassificator = FALSE;
+    bIncorrectFClassificator = FALSE;
     bEOF = FALSE;
+
+    firstObjectOffset = sizeof(RecordSXFHEAD) + sizeof(RecordSXFPSP) + sizeof(RecordSXFDSC);
+    lastObjectOffset = firstObjectOffset;
+
+    poFeatureDefn->Reference();
+
+    OGRFieldDefn oClCodeField = OGRFieldDefn( "CLCODE", OFTInteger );
+    oClCodeField.SetWidth(10);
+    poFeatureDefn->AddFieldDefn( &oClCodeField );
+
+    OGRFieldDefn oClNameField = OGRFieldDefn( "CLNAME", OFTString );
+    oClNameField.SetWidth(32);
+    poFeatureDefn->AddFieldDefn( &oClNameField );
+
+    OGRFieldDefn oNumField = OGRFieldDefn( "OBJECTNUMB", OFTInteger );
+    oNumField.SetWidth(10);
+    poFeatureDefn->AddFieldDefn( &oNumField );
+
+    OGRFieldDefn  oTextField( "TEXT", OFTString );
+    oTextField.SetWidth(255);
+    poFeatureDefn->AddFieldDefn( &oTextField );
+
+
+    VSIFSeekL( fpSXF, firstObjectOffset,  SEEK_SET);
+
+    std::set<GUInt16> unicClassifiers;
+    RecordSXFOBJ oSXFObj;
+    while(VSIFReadL( &oSXFObj, sizeof(RecordSXFOBJ), 1, fpSXF ))
+    {
+
+        VSIFSeekL(fpSXF, oSXFObj.nCertifLength, SEEK_CUR);
+
+        size_t nDataSize = oSXFObj.nRecordLength - sizeof(RecordSXFOBJ) - oSXFObj.nCertifLength;
+        char * psRecordBuf = (char *) CPLMalloc( nDataSize );
+        VSIFReadL( psRecordBuf, nDataSize , 1, fpSXF );
+
+        if(oSXFObj.bHazSemantics == 0)
+            continue;
+
+        if(objectsClassificators.find(oSXFObj.iCC) == objectsClassificators.end())
+            continue;
+
+        size_t attributeOffset = 0;
+
+        while(attributeOffset < nDataSize)
+        {
+            GUInt16 code = *(GUInt16 *)(psRecordBuf + attributeOffset);
+            attributeOffset += 2;
+
+            if(unicClassifiers.find(code) != unicClassifiers.end())
+            {
+                break;
+            }
+
+            GByte type = *(GByte *)(psRecordBuf + attributeOffset);
+            attributeOffset += 1;
+
+            GByte scale = *(GByte *)(psRecordBuf + attributeOffset);
+            attributeOffset += 1;
+
+            unicClassifiers.insert(code);
+
+            CPLString oFieldName;
+            oFieldName.Printf("%d", code);
+
+            OGRFieldDefn  oField( oFieldName, OFTString );
+            oField.SetWidth(10);
+            poFeatureDefn->AddFieldDefn( &oField );
+
+            switch(type)
+            {
+                case sctASCIIZ_DOS:
+                {
+                    attributeOffset += scale + 1;
+                    break;
+                }
+                case sctOneByte:
+                {
+                    attributeOffset += 1;
+                    break;
+                }
+                case sctTwoByte:
+                {
+                    attributeOffset += 2;
+                    break;
+                }
+                case sctForeByte:
+                {
+                    attributeOffset += 4;
+                    break;
+                }
+                case sctEightByte:
+                {
+                    attributeOffset += 8;
+                    break;
+                }
+                case sctANSI_Windows:
+                {
+                    attributeOffset += scale + 1;
+                    break;
+                }
+                case sctUNICODE_UNIX:
+                {
+                    attributeOffset += scale + 1;
+                    break;
+                }
+                case sctBigString:
+                {
+                    GUInt32 scale2 = *(GUInt32 *)(psRecordBuf+attributeOffset);
+                    attributeOffset += scale2;
+                    break;
+                }
+            }
+        }
+    }
 }
 
 /************************************************************************/
@@ -254,17 +366,17 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
         return NULL;
     }
 
-	if (oSXFObj.iCC != objectsClassificator)
+    std::set<GInt32>::iterator classifierIt = objectsClassificators.find(oSXFObj.iCC);
+    if(classifierIt == objectsClassificators.end())
 	{
 		bIncorrectFClassificator = TRUE;
 		VSIFSeekL( fpSXF, oSXFObj.nRecordLength - sizeof(RecordSXFOBJ), SEEK_CUR );
 		return NULL;
 	}
-	
+
     char * psRecordBuf = (char *) CPLMalloc( oSXFObj.nCertifLength );
     VSIFReadL( psRecordBuf, oSXFObj.nCertifLength , 1, fpSXF );
 
-	//printf("oSXFObj.bGeomType: %d\n", oSXFObj.bGeomType);
     if (oSXFObj.bGeomType == sxfPoint) 
         poFeature = TranslatePoint( oSXFObj, psRecordBuf );
 	else if (oSXFObj.bGeomType == sxfLine)       
@@ -274,21 +386,29 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 	else if (oSXFObj.bGeomType == sxfText ) 
         poFeature = TranslateText ( oSXFObj, psRecordBuf );
 	else if (oSXFObj.bGeomType == sxfVector ) // TODO realise this
-        CPLError( CE_Fatal, CPLE_NotSupported, 
+        CPLError( CE_Warning, CPLE_NotSupported,
                   "SXF. Geometry type Vector do not support." ); 
 	else if (oSXFObj.bGeomType == sxfTextTemplate ) // TODO realise this
-        CPLError( CE_Fatal, CPLE_NotSupported, 
+        CPLError( CE_Warning, CPLE_NotSupported,
                   "SXF. Geometry type Text Template do not support." );
 	
 	if (oSXFObj.bHazTyingVect == 1)
-		CPLError( CE_Fatal, CPLE_NotSupported, 
+        CPLError( CE_Fatal, CPLE_NotSupported,
                   "SXF. Parsing the vector of the tying not support." );
 
     if (poFeature != NULL)
     {
-		poFeature->SetField("OBJECTCODE", oSXFObj.iCC);
-		poFeature->SetField("OBJECTNUMB", oSXFObj.nObjNumb);
-	
+        poFeature->SetField("CLCODE", oSXFObj.iCC);
+
+        poFeature->SetField("CLNAME", oSXFObj.iCC);
+
+        if (oRSCLayer != NULL)
+            poFeature->SetField("CLNAME", oRSCLayer->rscObjects[*classifierIt].c_str());
+        else
+            poFeature->SetField("CLNAME", oSXFObj.iCC);
+
+        poFeature->SetField("OBJECTNUMB", oSXFObj.nObjNumb);
+
 		if(oSXFObj.bHazSemantics == 1)
 		{
 			size_t  nSemanticsSize = oSXFObj.nRecordLength - sizeof(RecordSXFOBJ) - oSXFObj.nCertifLength;
@@ -300,6 +420,8 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 			{
 				GUInt16 characterCode = *(GUInt16 *)(psSemanticsdBuf+offset);
 				offset += 2;
+
+                //printf("cc: %d  ", characterCode);
 
 				GByte characterType = *(GByte *)(psSemanticsdBuf+offset);
 				offset += 1;

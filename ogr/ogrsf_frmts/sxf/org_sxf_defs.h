@@ -148,6 +148,51 @@ typedef struct {
 } RecordSXFHEAD;
 
 
+/**
+ * HEADER OF THE RSC FILE
+ */
+typedef struct  {
+    unsigned nOffset;
+    unsigned nLenght;
+    unsigned nRecordCount;
+} RecordRSCSection;
+
+typedef struct{
+    char szID[4];
+    unsigned nFileLength;
+    unsigned nVersion;
+    unsigned nEncoding;
+    unsigned nFileState;
+    unsigned nFileModState;
+    unsigned nLang;//1 - en, 2 - rus
+    unsigned nNextID;
+    char date[8];
+    char szMapType[32];
+    char szClassifyName[32];
+    char szClassifyCode[8];
+    long nScale;
+    char nScales[4];
+    RecordRSCSection Objects;
+    RecordRSCSection Semantic;
+    RecordRSCSection ClassifySemantic;
+    RecordRSCSection Defaults;
+    RecordRSCSection Semantics;
+    RecordRSCSection Layers;
+    RecordRSCSection Limits;
+    RecordRSCSection Parameters;
+    RecordRSCSection Print;
+    RecordRSCSection Palettes;
+    RecordRSCSection Fonts;
+    RecordRSCSection Libs;
+    RecordRSCSection ImageParams;
+    RecordRSCSection Tables;
+    char nFlagKeysAsCodes;
+    char nFlagPalleteMods;
+    char Reserved[30];
+    char szFontEnc[4];
+    unsigned nColorsInPalette;
+} RecordRSCHEAD;
+
  /**
  * PASSPORT OF THE SXF FILE
  */
