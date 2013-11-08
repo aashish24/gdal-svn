@@ -433,7 +433,6 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
                 oFieldName.Printf("SEMCODE_%d",characterCode);
 				CPLString oFieldValue;
 
-				size_t byte_count = 0;
 				switch(characterType)
 				{
 					case sctASCIIZ_DOS:
@@ -481,8 +480,6 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 					case sctEightByte:
 					{
                         double d = *(double *)(psSemanticsdBuf+offset);
-                        d *= std::pow(10.0, (double)scale);
-
                         oFieldValue.Printf("%f",d);
 						poFeature->SetField(oFieldName, oFieldValue);
 
