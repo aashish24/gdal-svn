@@ -58,8 +58,6 @@ set(LIB_CSOURCES
 )
 #need to compile
 #add_subdirectory(generic)
-add_definitions(-DSXF_ENABLED)
-add_subdirectory(sxf)
 
 add_definitions(-DTAB_ENABLED)
 add_subdirectory(mitab)
@@ -154,6 +152,12 @@ option(OGR_ENABLE_LIBKML "Set ON to build libkml driver" OFF)
 if(OGR_ENABLE_LIBKML)
 	add_definitions(-DLIBKML_ENABLED)
 	add_subdirectory(libkml)
+endif()
+
+option(OGR_ENABLE_SXF "Set ON to build sxf driver" OFF)
+if(OGR_ENABLE_SXF)
+    add_definitions(-DSXF_ENABLED)
+    add_subdirectory(sxf)
 endif()
 
 set(GDAL_TARGET_OBJECTS ${GDAL_TARGET_OBJECTS} $<TARGET_OBJECTS:${LIB_NAME}> PARENT_SCOPE)
