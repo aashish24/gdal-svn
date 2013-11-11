@@ -308,6 +308,37 @@ static CPLErr ProcessLayer( OGRLayerH hSrcLayer, GDALDatasetH hDstDS,
                 ProcessGeometry( (OGRPoint *)poGeom, poClipSrc,
                                  iBurnField, dfBurnValue, adfX, adfY, adfZ);
             }
+            else  if ( eType == wkbLineString )
+            {
+                OGRLineString *poLS = (OGRLineString*)poGeom;
+                OGRPoint point;
+
+                for(size_t pointIndex = 0; pointIndex < poLS->getNumPoints(); pointIndex++)
+                {
+                    poLS->getPoint(pointIndex, &point);
+                    ProcessGeometry( &point,
+                                 poClipSrc, iBurnField, dfBurnValue,
+                                 adfX, adfY, adfZ);
+                }
+            }
+            else  if ( eType == wkbMultiLineString )
+            {
+                int iGeom;
+                int nGeomCount = ((OGRMultiLineString *)poGeom)->getNumGeometries();
+                for ( iGeom = 0; iGeom < nGeomCount; iGeom++ )
+                {
+                    OGRLineString *poLS = (OGRLineString*)((OGRMultiLineString*)poGeom)->getGeometryRef(iGeom);
+                    OGRPoint point;
+
+                    for(size_t pointIndex = 0; pointIndex < poLS->getNumPoints(); pointIndex++)
+                    {
+                        poLS->getPoint(pointIndex, &point);
+                        ProcessGeometry( &point,
+                                     poClipSrc, iBurnField, dfBurnValue,
+                                     adfX, adfY, adfZ);
+                    }
+                }
+            }
         }
 
         OGRFeature::DestroyFeature( poFeat );
@@ -979,7 +1010,7 @@ int main( int argc, char ** argv )
 /* -------------------------------------------------------------------- */
     for( i = 0; i < nLayerCount; i++ )
     {
-        OGRLayerH hLayer = OGR_DS_GetLayerByName( hSrcDS, papszLayers[i] );
+        OGRLayerH hLayer = OGR_DS_GetLayerByName( hSrcDS, papszLayers[i]);
         if( hLayer == NULL )
         {
             fprintf( stderr, "Unable to find layer \"%s\", skipping.\n", 
