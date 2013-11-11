@@ -131,10 +131,8 @@ OGRSXFDataSource::~OGRSXFDataSource()
 {
     for( int i = 0; i < nLayers; i++ )
         delete papoLayers[i];
-
     CPLFree( papoLayers );
     CPLFree( pszName );
-
 }
 
 /************************************************************************/
@@ -193,6 +191,7 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
     }
     else
     {
+        // Скопировать путь до sxf
         fileName += CPLGetBasename(pszFilename);
         fileName += ".rsc";
     }
@@ -257,6 +256,7 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
 		return FALSE;
 	}
 
+
     size_t nSXFFileSPSize = sizeof(oSXFSP);
     nObjectsRead = VSIFReadL( &oSXFSP, nSXFFileSPSize, 1, fpSXF );
 
@@ -276,7 +276,6 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
         CloseFile();
         return FALSE;
     }
-
     /*
 	printf("NOMENCLATURE OF THE SHEET (ANSI): %s \n", oSXFSP.szName);
 	printf("SCALE OF SHEET (DENOMINATOR): %d \n", oSXFSP.nScale);
@@ -352,7 +351,7 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
 	printf("dfMainPtPar: %f \n", oSXFSP.dfMainPtPar);
 	printf("dfFalseNorthing: %f \n", oSXFSP.dfFalseNorthing);
 	printf("dfFalseEasting: %f \n", oSXFSP.dfFalseEasting);
-    */
+
 
 /*---------------- READ THE RSC FILE HEADER  ---------------------------*/
 
@@ -370,13 +369,14 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
     }
 
 /*----------------- SOME CHECKS -----------------------------------------*/
-	
+    /*
 	if (oSXFSP.bDataFlag != FLAGSXFDATACOMMUNICATION)
 	{
         CPLError( CE_Fatal, CPLE_NotSupported,
                   "SXF. Wrong state of the data." );
 		return FALSE;
 	}
+    */
 
 	if (oSXFSP.bProjCorres != FLAGSXFDATAINPROJECTION)
 	{
@@ -404,10 +404,7 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
 
 /*---------------- Layers Creation ---------------------------------*/ 
 
-    CPLError( CE_Warning, CPLE_None,
-                "SXF. Semantic attribute add as OFTString type.");
-
-    CreateLayers(oSXFSP, oSXFDSC, *poSRS);
+    CreateLayers(oSXFSP, oSXFDSC, poSRS);
 
     return TRUE;
 }
@@ -415,7 +412,7 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
 void OGRSXFDataSource::CreateLayers(
         RecordSXFPSP  &oSXFPSP,
         RecordSXFDSC &oSXFDSC,
-        OGRSpatialReference &poSRS)
+        OGRSpatialReference *poSRS)
 {
     CPLDebug("SXF","Create layers");
     CPLString osLayerName;

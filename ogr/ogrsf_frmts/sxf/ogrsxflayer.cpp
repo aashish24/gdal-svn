@@ -41,8 +41,8 @@ CPL_CVSID("$Id: ogrsxflayer.cpp $");
 /*                        OGRSXFLayer()                                 */
 /************************************************************************/
 
-OGRSXFLayer::OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialReference &sr, RecordSXFPSP&  oSXFP, RecordSXFDSC&  oSXFD, std::set<GInt32> objCls, RSCLayer*  rscLayer)
-    : poSRS(new OGRSpatialReference(sr)),
+OGRSXFLayer::OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialReference *sr, RecordSXFPSP&  oSXFP, RecordSXFDSC&  oSXFD, std::set<GInt32> objCls, RSCLayer*  rscLayer)
+    : poSRS(new OGRSpatialReference(*sr)),
       oRSCLayer(rscLayer),
       objectsClassificators(objCls)
 {
@@ -120,54 +120,91 @@ OGRSXFLayer::OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialRefer
             CPLString oFieldName;
             oFieldName.Printf("SEMCODE_%d", code);
 
-            OGRFieldDefn  oField( oFieldName, OFTString );
-            oField.SetWidth(10);
-            poFeatureDefn->AddFieldDefn( &oField );
-
             switch(type)
             {
                 case sctASCIIZ_DOS:
                 {
                     attributeOffset += scale + 1;
+
+                    OGRFieldDefn  oField( oFieldName, OFTString );
+                    oField.SetWidth(scale + 1);
+                    poFeatureDefn->AddFieldDefn( &oField );
+
                     break;
                 }
                 case sctOneByte:
                 {
                     attributeOffset += 1;
+
+                    OGRFieldDefn  oField( oFieldName, OFTReal );
+                    oField.SetWidth(10);
+                    poFeatureDefn->AddFieldDefn( &oField );
+
                     break;
                 }
                 case sctTwoByte:
                 {
                     attributeOffset += 2;
+
+                    OGRFieldDefn  oField( oFieldName, OFTReal );
+                    oField.SetWidth(10);
+                    poFeatureDefn->AddFieldDefn( &oField );
+
                     break;
                 }
                 case sctForeByte:
                 {
                     attributeOffset += 4;
+
+                    OGRFieldDefn  oField( oFieldName, OFTReal );
+                    oField.SetWidth(10);
+                    poFeatureDefn->AddFieldDefn( &oField );
+
                     break;
                 }
                 case sctEightByte:
                 {
                     attributeOffset += 8;
+
+                    OGRFieldDefn  oField( oFieldName, OFTReal );
+                    oField.SetWidth(10);
+                    poFeatureDefn->AddFieldDefn( &oField );
+
                     break;
                 }
                 case sctANSI_Windows:
                 {
                     attributeOffset += scale + 1;
+
+                    OGRFieldDefn  oField( oFieldName, OFTString );
+                    oField.SetWidth(scale + 1);
+                    poFeatureDefn->AddFieldDefn( &oField );
+
                     break;
                 }
                 case sctUNICODE_UNIX:
                 {
                     attributeOffset += scale + 1;
+
+                    OGRFieldDefn  oField( oFieldName, OFTString );
+                    oField.SetWidth(scale + 1);
+                    poFeatureDefn->AddFieldDefn( &oField );
+
                     break;
                 }
                 case sctBigString:
                 {
                     GUInt32 scale2 = *(GUInt32 *)(psRecordBuf+attributeOffset);
                     attributeOffset += scale2;
+
+                    OGRFieldDefn  oField( oFieldName, OFTString );
+                    oField.SetWidth(attributeOffset);
+                    poFeatureDefn->AddFieldDefn( &oField );
+
                     break;
                 }
             }
+
         }
     }
 }
@@ -385,13 +422,14 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
         poFeature = TranslatePolygon( oSXFObj, psRecordBuf );
 	else if (oSXFObj.bGeomType == sxfText ) 
         poFeature = TranslateText ( oSXFObj, psRecordBuf );
+    /*
 	else if (oSXFObj.bGeomType == sxfVector ) // TODO realise this
         CPLError( CE_Warning, CPLE_NotSupported,
                   "SXF. Geometry type Vector do not support." ); 
 	else if (oSXFObj.bGeomType == sxfTextTemplate ) // TODO realise this
         CPLError( CE_Warning, CPLE_NotSupported,
                   "SXF. Geometry type Text Template do not support." );
-	
+    */
 	if (oSXFObj.bHazTyingVect == 1)
         CPLError( CE_Fatal, CPLE_NotSupported,
                   "SXF. Parsing the vector of the tying not support." );
@@ -439,7 +477,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 					{
 						char * value = (char*) CPLMalloc( scale + 1 );
 						memcpy(value, psSemanticsdBuf+offset,scale + 1);
-						poFeature->SetField(oFieldName, value);
+                        poFeature->SetField(oFieldName, CPLRecode( value, CPL_ENC_ASCII, "UTF-8") );
 
 						offset += scale + 1;
 						break;
@@ -450,7 +488,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
                         d *= std::pow(10.0, (double)scale);
 
                         oFieldValue.Printf("%f",d);
-						poFeature->SetField(oFieldName, oFieldValue);
+                        poFeature->SetField(oFieldName, d);
 
 						offset += 1;					
 						break;
@@ -461,7 +499,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
                         d *= std::pow(10.0, (double)scale);
 
                         oFieldValue.Printf("%f",d);
-						poFeature->SetField(oFieldName, oFieldValue);
+                        poFeature->SetField(oFieldName, d);
 
 						offset += 2;
 						break;
@@ -472,7 +510,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
                         d *= std::pow(10.0, (double)scale);
 
                         oFieldValue.Printf("%f",d);
-						poFeature->SetField(oFieldName, oFieldValue);
+                        poFeature->SetField(oFieldName, d);
 
 						offset += 4;
 						break;
@@ -481,7 +519,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 					{
                         double d = *(double *)(psSemanticsdBuf+offset);
                         oFieldValue.Printf("%f",d);
-						poFeature->SetField(oFieldName, oFieldValue);
+                        poFeature->SetField(oFieldName, d);
 
 						offset += 8;
 						break;
@@ -490,7 +528,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 					{
 						char * value = (char*) CPLMalloc( scale + 1 );
 						memcpy(value, psSemanticsdBuf+offset,scale + 1);
-						poFeature->SetField(oFieldName, value);
+                        poFeature->SetField(oFieldName, CPLRecode( value, "CP1251", "UTF-8") );
 
 						offset += scale + 1;
 						break;
@@ -509,7 +547,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 						GUInt32 scale2 = *(GUInt32 *)(psSemanticsdBuf+offset);
 						char * value = (char*) CPLMalloc( scale2 + 1 );
 						memcpy(value, psSemanticsdBuf+offset,scale2 + 1);
-						poFeature->SetField(oFieldName, value);
+                        poFeature->SetField(oFieldName, CPLRecode( value, "UTF-16", "UTF-8"));
 
 						offset += scale2;
 						break;

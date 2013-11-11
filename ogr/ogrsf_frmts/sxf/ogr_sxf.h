@@ -90,7 +90,7 @@ class OGRSXFLayer : public OGRLayer
 {
 protected:
     OGRFeatureDefn*    poFeatureDefn;
-    std::auto_ptr<OGRSpatialReference> poSRS;
+    OGRSpatialReference* poSRS;
 
 	VSILFILE*          fpSXF;
 	int                bEOF;
@@ -119,7 +119,7 @@ protected:
 	OGRFeature *TranslatePolygon ( RecordSXFOBJ  oSXFObj, char * psBuff );
 	OGRFeature *TranslateLine ( RecordSXFOBJ  oSXFObj, char * psBuff );
 public:
-    OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialReference& sr, RecordSXFPSP&  sxfP, RecordSXFDSC&  sxfD, std::set<GInt32> objCls, RSCLayer*  rscLayer);
+    OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialReference *sr, RecordSXFPSP&  sxfP, RecordSXFDSC&  sxfD, std::set<GInt32> objCls, RSCLayer*  rscLayer);
     ~OGRSXFLayer();
 
 	virtual void                ResetReading();
@@ -129,7 +129,7 @@ public:
 
     virtual int                 TestCapability( const char * );
 
-    virtual OGRSpatialReference *GetSpatialRef() { return poSRS.get(); }
+    virtual OGRSpatialReference *GetSpatialRef() { return poSRS; }
 };
 
 
@@ -149,7 +149,7 @@ class OGRSXFDataSource : public OGRDataSource
 
     RSCLayers   rscLayers;
 
-    void CreateLayers(RecordSXFPSP  &oSXFPSP, RecordSXFDSC &oSXFDSC, OGRSpatialReference &poSRS);
+    void CreateLayers(RecordSXFPSP  &oSXFPSP, RecordSXFDSC &oSXFDSC, OGRSpatialReference *poSRS);
     void ReadRSCLayers(RecordRSCHEAD &RSCFileHeader);
   public:
                         OGRSXFDataSource();
