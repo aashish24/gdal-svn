@@ -139,7 +139,7 @@ public:
 
 class OGRSXFDataSource : public OGRDataSource
 {
-    char*               pszName;
+    CPLString               pszName;
 
     OGRLayer**          papoLayers;
     size_t              nLayers;
@@ -176,11 +176,10 @@ class OGRSXFDriver : public OGRSFDriver
   public:
                 ~OGRSXFDriver();
 
-    virtual const char*         GetName();
-    virtual OGRDataSource*      Open( const char *, int );
-    virtual int                 TestCapability( const char * );
+    const char*     GetName();
+    OGRDataSource*  Open( const char *, int );
+    OGRErr          DeleteDataSource(const char* pszName);
+    int             TestCapability(const char *);
 };
-
-
 
 #endif 

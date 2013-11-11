@@ -285,6 +285,9 @@ OGRFeature *OGRSXFLayer::GetNextFeature()
 int OGRSXFLayer::TestCapability( const char * pszCap )
 
 {
+    if (EQUAL(pszCap, OLCStringsAsUTF8))
+        return TRUE;
+        
     return FALSE;
 }
 
@@ -477,7 +480,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 					{
 						char * value = (char*) CPLMalloc( scale + 1 );
 						memcpy(value, psSemanticsdBuf+offset,scale + 1);
-                        poFeature->SetField(oFieldName, CPLRecode( value, CPL_ENC_ASCII, "UTF-8") );
+                        poFeature->SetField(oFieldName, value );
 
 						offset += scale + 1;
 						break;
@@ -528,7 +531,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 					{
 						char * value = (char*) CPLMalloc( scale + 1 );
 						memcpy(value, psSemanticsdBuf+offset,scale + 1);
-                        poFeature->SetField(oFieldName, CPLRecode( value, "CP1251", "UTF-8") );
+                        poFeature->SetField(oFieldName, CPLRecode(value, "CP1251", CPL_ENC_UTF8));
 
 						offset += scale + 1;
 						break;
@@ -547,7 +550,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 						GUInt32 scale2 = *(GUInt32 *)(psSemanticsdBuf+offset);
 						char * value = (char*) CPLMalloc( scale2 + 1 );
 						memcpy(value, psSemanticsdBuf+offset,scale2 + 1);
-                        poFeature->SetField(oFieldName, CPLRecode( value, "UTF-16", "UTF-8"));
+                        poFeature->SetField(oFieldName, CPLRecode(value, CPL_ENC_UTF16, CPL_ENC_UTF8));
 
 						offset += scale2;
 						break;
@@ -819,11 +822,9 @@ if ( oSXFObj.nSubObjCount == 0)
 
         strncpy(pszTextBuf, (pszTxt+1),    nTextL+1);
 
-        poFeature->SetField( "TEXT", pszTextBuf );
+        //TODO: Check encoding from sxf
+        poFeature->SetField("TEXT", CPLRecode(pszTextBuf, "CP1251", CPL_ENC_UTF8));
  
-//         poFeature->SetStyleString("LABEL(f:\"Arial\",t:\"Hello ...\",s:\"20\")");
-//       printf("\n Text lenght = %#d text : %s ",nTextL, pszTextBuf);
-
         CPLFree( pszTextBuf );  
   }
 

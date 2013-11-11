@@ -72,13 +72,47 @@ OGRDataSource *OGRSXFDriver::Open( const char * pszFilename, int bUpdate )
 }
 
 /************************************************************************/
+/*                           DeleteDataSource()                         */
+/************************************************************************/
+
+OGRErr OGRSXFDriver::DeleteDataSource(const char* pszName)
+{
+    int iExt;
+    //TODO: add more extensions if aplicable
+    static const char *apszExtensions[] = { "szf", "rsc", NULL }; 
+
+    VSIStatBufL sStatBuf;
+    if (VSIStatL(pszName, &sStatBuf) != 0)
+    {
+        CPLError(CE_Failure, CPLE_AppDefined,
+            "%s does not appear to be a valid sxf file.",
+            pszName);
+
+        return OGRERR_FAILURE;
+    }
+
+    for (iExt = 0; apszExtensions[iExt] != NULL; iExt++)
+    {
+        const char *pszFile = CPLResetExtension(pszName,
+            apszExtensions[iExt]);
+        if (VSIStatL(pszFile, &sStatBuf) == 0)
+            VSIUnlink(pszFile);
+    }
+
+    return OGRERR_NONE;
+}
+
+/************************************************************************/
 /*                           TestCapability()                           */
 /************************************************************************/
 
 int OGRSXFDriver::TestCapability( const char * pszCap )
 
 {
-    return FALSE;
+    if (EQUAL(pszCap, ODrCDeleteDataSource))
+        return TRUE;
+    else
+        return FALSE;
 }
 
 /************************************************************************/

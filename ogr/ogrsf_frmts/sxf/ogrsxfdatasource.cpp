@@ -103,10 +103,7 @@ namespace
                                oSXFSP.dfFalseEasting, oSXFSP.dfFalseNorthing, ZoneNumber };
 
 		OGRErr err = poSRS->importFromPanorama( oSXFSP.iProjSys, oSXFSP.iDatum, oSXFSP.iEllips, padfPrjParams );
-		if ( err != OGRERR_NONE )
-		{
-			return err;
-		}
+		return err;
 	}
 }
 /************************************************************************/
@@ -119,7 +116,8 @@ OGRSXFDataSource::OGRSXFDataSource()
     papoLayers = NULL;
     nLayers = 0;
 
-    pszName = NULL;
+    fpSXF = NULL;
+    fpRSC = NULL;
 }
 
 /************************************************************************/
@@ -132,7 +130,6 @@ OGRSXFDataSource::~OGRSXFDataSource()
     for( int i = 0; i < nLayers; i++ )
         delete papoLayers[i];
     CPLFree( papoLayers );
-    CPLFree( pszName );
 }
 
 /************************************************************************/
@@ -140,8 +137,15 @@ OGRSXFDataSource::~OGRSXFDataSource()
 /************************************************************************/
 void  OGRSXFDataSource::CloseFile()
 { 
-    VSIFCloseL( fpSXF );
-    VSIFCloseL( fpRSC );
+    if (NULL != fpSXF)
+    {
+        VSIFCloseL( fpSXF );
+    }
+
+    if (NULL != fpRSC)
+    {
+        VSIFCloseL( fpRSC );
+    }
 }
 
 /************************************************************************/
@@ -181,41 +185,18 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
         return FALSE;
     }
 
-    pszName = CPLStrdup( pszFilename );
+    pszName = pszFilename;
 
-    std::string fileName;
-    if( CPLGetConfigOption("RSC_FILENAME",NULL) != NULL )
-    {
-        fileName += CPLStrdup( CPLGetConfigOption("RSC_FILENAME", NULL) );
-
-    }
-    else
-    {
-        // Скопировать путь до sxf
-        fileName += CPLGetBasename(pszFilename);
-        fileName += ".rsc";
-    }
-
-    char * pszRSCFilename = new char[fileName.length() + 1];
-    strcpy(pszRSCFilename, fileName.c_str());
-        
 /* -------------------------------------------------------------------- */
 /*      Determine what sort of object this is.                          */
 /* -------------------------------------------------------------------- */
 
     VSIStatBufL sStatBuf;
 
-    if( VSIStatL( pszFilename, &sStatBuf ) != 0 ||
+    if (VSIStatL(pszName, &sStatBuf) != 0 ||
         !VSI_ISREG(sStatBuf.st_mode) ||
-        !EQUAL(CPLGetExtension(pszFilename), "sxf") )
+        !EQUAL(CPLGetExtension(pszName), "sxf"))
         return FALSE;
-
-    if( VSIStatL( pszRSCFilename, &sStatBuf ) != 0 ||
-        !VSI_ISREG(sStatBuf.st_mode) ||
-        !EQUAL(CPLGetExtension(pszRSCFilename), "rsc") )
-    {
-        CPLError(CE_Warning, CPLE_None , "RSC file %s not exist", pszFilename);
-    }
 
 // -------------------------------------------------------------------- 
 //      Does this appear to be a .sxf file?
@@ -225,16 +206,10 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
     RecordSXFPSP  oSXFSP;
     RecordSXFDSC  oSXFDSC;
 
-    fpSXF = VSIFOpenL(pszFilename, "rb");
+    fpSXF = VSIFOpenL(pszName, "rb");
     if ( fpSXF == NULL )
         return FALSE;
 
-    RecordRSCHEAD RSCFileHeader;
-    fpRSC = VSIFOpenL(pszRSCFilename, "rb");
-    if ( fpSXF == NULL )
-    {
-        CPLError(CE_Warning, CPLE_OpenFailed , "RSC open file %s failed", pszFilename);
-    }
 
 /*---------------- READ THE SXF FILE HEADER  ---------------------------------*/
 
@@ -355,16 +330,37 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
 
 /*---------------- READ THE RSC FILE HEADER  ---------------------------*/
 
-    if (fpRSC != NULL)
+    //try find RSC file
+    CPLString pszRSCRileName = CPLResetExtension(pszFilename, "rsc");
+    if (CPLCheckForFile((char *)pszRSCRileName.c_str(), NULL) == FALSE)
     {
-        int nRSCFileHeaderSize = sizeof(RSCFileHeader);
-        nObjectsRead = VSIFReadL( &RSCFileHeader, nRSCFileHeaderSize, 1, fpRSC );
-
-        if (nObjectsRead != 1)
+        //try get rsc file from config
+        pszRSCRileName = CPLGetConfigOption("RSC_FILENAME", "");
+        if (CPLCheckForFile((char *)pszRSCRileName.c_str(), NULL) == FALSE)
         {
-            CPLError(CE_Failure, CPLE_None , "RSC Read of head failed");
-            CloseFile();
-            return FALSE;
+            CPLError(CE_Warning, CPLE_None, "RSC file %s not exist", pszRSCRileName);
+            pszRSCRileName.Clear();
+        }
+    }
+
+    RecordRSCHEAD RSCFileHeader;
+    if (!pszRSCRileName.empty())
+    {
+        fpRSC = VSIFOpenL(pszRSCRileName, "rb");
+        if (fpSXF == NULL)
+        {
+            CPLError(CE_Warning, CPLE_OpenFailed, "RSC open file %s failed", pszFilename);
+        }
+        else
+        {
+            int nRSCFileHeaderSize = sizeof(RSCFileHeader);
+            nObjectsRead = VSIFReadL(&RSCFileHeader, nRSCFileHeaderSize, 1, fpRSC);
+
+            if (nObjectsRead != 1)
+            {
+                CPLError(CE_Failure, CPLE_None, "RSC head read failed");
+                CloseFile();
+            }
         }
     }
 
@@ -394,12 +390,14 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
 
 /*---------------- Reda RSC file -------------------------------------------*/
 
-    if(fpRSC != NULL)
+    if (fpRSC != NULL)
+    {
         ReadRSCLayers(RSCFileHeader);
+    }
 
 /*---------------- Spatial index for all Layers --------------------*/
 
-    OGRSpatialReference *poSRS(new OGRSpatialReference);
+    OGRSpatialReference *poSRS = new OGRSpatialReference();
     getOGRSpatialReference(oSXFSP, poSRS);
 
 /*---------------- Layers Creation ---------------------------------*/ 
