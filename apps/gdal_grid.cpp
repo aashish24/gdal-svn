@@ -290,16 +290,6 @@ static void ProcessCommonGeometry(OGRGeometry* poGeom, OGRGeometry *poClipSrc,
     case wkbMultiPoint:
     case wkbMultiPolygon:
     case wkbMultiLineString:
-        {
-            int nGeomCount = ((OGRMultiLineString *)poGeom)->getNumGeometries();
-            for ( int iGeom = 0; iGeom < nGeomCount; iGeom++ )
-            {
-                OGRLineString *poLS = (OGRLineString*)((OGRMultiLineString*)poGeom)->getGeometryRef(iGeom);
-
-                ProcessCommonGeometry((OGRGeometry*)poLS, poClipSrc,
-                    iBurnField, dfBurnValue, adfX, adfY, adfZ);
-            }
-        }
     case wkbGeometryCollection:
         {
             OGRGeometryCollection* pOGRGeometryCollection = (OGRGeometryCollection*)poGeom;
