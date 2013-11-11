@@ -68,3 +68,11 @@ swig/perl/pm_to_blib
 man/
 html/
 nmake.local
+build
+build32
+build64
+lib
+include
+port/cpl_config.h
+gcore/gdal_def.h
+bin
