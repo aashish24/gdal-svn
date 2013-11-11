@@ -75,3 +75,4 @@ lib
 include
 port/cpl_config.h
 gcore/gdal_def.h
+bin
