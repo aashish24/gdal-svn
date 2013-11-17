@@ -160,6 +160,12 @@ if(OGR_ENABLE_SXF)
     add_subdirectory(sxf)
 endif()
 
+option(OGR_ENABLE_S57 "Set ON to build s57 driver" OFF)
+if(OGR_ENABLE_S57)
+    add_definitions(-DS57_ENABLED)
+    add_subdirectory(s57)
+endif()
+
 set(GDAL_TARGET_OBJECTS ${GDAL_TARGET_OBJECTS} $<TARGET_OBJECTS:${LIB_NAME}> PARENT_SCOPE)
 set(GDAL_TARGET_LINK_LIB ${GDAL_TARGET_LINK_LIB} PARENT_SCOPE)
 add_library(${LIB_NAME} OBJECT ${LIB_HHEADERS} ${LIB_CSOURCES})
