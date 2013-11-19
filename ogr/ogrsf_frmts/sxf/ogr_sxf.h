@@ -37,51 +37,37 @@
 #include "ogrsf_frmts.h"
 #include "org_sxf_defs.h"
 
-/**
- * List of SXF file format geometry types.  
- */
-
-typedef enum org_sxf_geometry_type
-{
-    sxfLine    = 0,      /* MultiLineString geometric object                  */
-    sxfPolygon = 1,      /* Polygon geometric object                          */
-    sxfPoint   = 2,      /* MultiPoint geometric object                       */
-    sxfText    = 3,      /* LineString geometric object with associated label */
-	sxfVector  = 4,      /* Vector geometric object with associated label */
-	sxfTextTemplate    = 5,      /*  */
-} OGRsxfGeometryType;
-
-/**
- * Semantics attribute header
- */
-struct AttributeSXFOBJ
-{
-	GUInt16 attributeCode;
-	AttributeTypeSXFOBJ	attributeType;
-	GByte	attributeScale;
-
-	bool operator<(const AttributeSXFOBJ &attr) const
-	{
-		if(attributeCode < attr.attributeCode)
-			return true;
-		else
-			return false;
-	}
-};
-
-typedef std::set<AttributeSXFOBJ> SetOfAttributesSXFOBJ;
-
+/************************************************************************/
+/*                         RSCInfo                                      */
+/************************************************************************/
 typedef std::map<GUInt32, std::string> RSCObjects;
-
 struct RSCLayer
 {
     GByte szLayerId;
     std::string szLayerName;
     RSCObjects rscObjects;
 };
-
 typedef std::map<GByte, RSCLayer> RSCLayers;
 
+
+/************************************************************************/
+/*                         SXFInfo                                      */
+/************************************************************************/
+struct SXFDeviceInfo
+{
+    GInt32  iDeviceCapability;
+    SheetCornersCoordinates deviceFrameCoordinates;
+};
+
+struct SXFInfo
+{
+    SXFVersion version;
+    SXFInformationFlags informationFlags;
+    SXFMathBase mathBase;
+    SXFDeviceInfo deviceInfo;
+    GUInt32  nScale;
+    SheetCornersCoordinates sheetRectCoordinates;
+};
 
 /************************************************************************/
 /*                         OGRSXFLayer                                */
@@ -105,21 +91,20 @@ protected:
 	
     RSCLayer*  oRSCLayer;
 
-	RecordSXFPSP  oSXFPSP;
-    RecordSXFDSC  oSXFDSC;
+    std::tr1::shared_ptr<SXFInfo> poSXFInfo;
 
 	virtual OGRFeature *       GetNextRawFeature();
 
-	GUInt32 TranslateXYH ( RecordSXFOBJ  oSXFObj,     char *psBuff, 
+    GUInt32 TranslateXYH ( const SXFObjectInfo& objectInfo,     char *psBuff,
                           double *dfX, double *dfY, double *dfH = NULL);
 
 
-	OGRFeature *TranslatePoint( RecordSXFOBJ  oSXFObj, char * psRecordBuf );
-	OGRFeature *TranslateText ( RecordSXFOBJ  oSXFObj, char * psBuff );
-	OGRFeature *TranslatePolygon ( RecordSXFOBJ  oSXFObj, char * psBuff );
-	OGRFeature *TranslateLine ( RecordSXFOBJ  oSXFObj, char * psBuff );
+    OGRFeature *TranslatePoint( const SXFObjectInfo& objectInfo, char * psRecordBuf );
+    OGRFeature *TranslateText ( const SXFObjectInfo& objectInfo, char * psBuff );
+    OGRFeature *TranslatePolygon ( const SXFObjectInfo& objectInfo, char * psBuff );
+    OGRFeature *TranslateLine ( const SXFObjectInfo& objectInfo, char * psBuff );
 public:
-    OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialReference *sr, RecordSXFPSP&  sxfP, RecordSXFDSC&  sxfD, std::set<GInt32> objCls, RSCLayer*  rscLayer);
+    OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialReference *sr, SXFInfo&  sxfInfo, std::set<GInt32> objCls, RSCLayer*  rscLayer);
     ~OGRSXFLayer();
 
 	virtual void                ResetReading();
@@ -149,7 +134,7 @@ class OGRSXFDataSource : public OGRDataSource
 
     RSCLayers   rscLayers;
 
-    void CreateLayers(RecordSXFPSP  &oSXFPSP, RecordSXFDSC &oSXFDSC, OGRSpatialReference *poSRS);
+    void CreateLayers(SXFInfo& sxfInfo, OGRSpatialReference *poSRS);
     void ReadRSCLayers(RecordRSCHEAD &RSCFileHeader);
   public:
                         OGRSXFDataSource();

@@ -125,28 +125,158 @@
 #define SXF_DEFS_H
 
 #define IDSXF          0x00465853     /* SXF  */
-#define IDSXFVERSION   0x00040000     /* 4.0  */
+#define IDSXFVERSION4   0x00040000     /* 4.0  */
+#define IDSXFVERSION3   0x00000300     /* 3.0  */
+#define IDSXFVERSIONUNKNOWN   0x00000000
+
 #define IDSXFDATA      0x00544144     /* DAT  */
 #define IDSXFOBJ       0X7FFF7FFF     /* Object */
 #define IDSXFGRAPH     0X7FFF7FFE     /* graphics section */
 #define IDSXFVECT3D    0X7FFF7FFD     /* 3D vector section */
 
-#define FLAGSXFDATACOMMUNICATION 3		/* state of the data (Note 1) - data commenication state */
-#define FLAGSXFDATAINPROJECTION 1		/* data orresponded to the projection */
 #define FLAGSXFREALCOORDINATES 1		/* certificate in real coordinates */
 
 #include "cpl_port.h"
 
-/**
- * HEADER OF THE SXF FILE
- */
-typedef struct {
-	GUInt32 nFormatID  ;  /* IDENTIFIER OF THE FILE   0x00465853 (SXF) */
-	GUInt32 nPSPLength ;  /* LENGTH OF PASSPORT IN THE BYTES           */
-	GInt32 nVersion   ;  /* FILE VERSION              */
-	GInt32 nCheckSum  ;  /* THE CHECK SUM OF THE FILE */
-} RecordSXFHEAD;
+typedef GUInt32 SXFVersion;
 
+enum SXFDataState /* Flag of the state of the data (Note 1) */
+{
+    SXF_DS_UNKNOWN = 0,
+    SXF_DS_EXCHANGE = 3
+};
+
+typedef struct
+{
+    SXFDataState   dataState;
+    bool projectionDataCompliance; /* Flag of the correspondence to the projection (Note 2) */
+    bool realCoordinatesCompliance; /* Flag of the presence of the real coordinates (Note 3) */
+} SXFInformationFlags;
+
+enum SXFCoordinateType
+{
+    SXF_CT_RECTANGULAR = 0,
+    SXF_CT_GEODETIC
+};
+
+/* COORDINATES OF THE ANGLES OF SHEET */
+typedef struct
+{
+    long double   dfXsw  ; /* X the South Western angle (vertical line) */
+    long double   dfYsw  ; /* Y  */
+    long double   dfXnw  ; /* X the North Western angle */
+    long double   dfYnw  ; /* Y  */
+    long double   dfXne  ; /* X the North Eastern angle */
+    long double   dfYne  ; /* Y  */
+    long double   dfXse  ; /* X the South Eastern angle */
+    long double   dfYse  ; /* Y  */
+} SheetCornersCoordinates;
+
+
+/**
+ *  "Panorama" projection codes
+ */
+typedef enum
+{
+    PROJ_UNKNOWN = -1,
+    PROJ_TM = 1,      // Gauss-Kruger (Transverse Mercator)
+    PROJ_LCC = 2,      // Lambert Conformal Conic 2SP
+    PROJ_UTM = 17     // Universal Transverse Mercator (UTM)
+
+} PanaramaProjCode;
+
+/**
+ *  "Panorama" datum codes
+ */
+typedef enum
+{
+    DATUM_UNKNOWN = 0,
+    DATUM_PUL_42 = 1      // Pulkovo, 1942
+
+} PanaramaDatumCode;
+
+/**
+ *  "Panorama" ellips codes
+ */
+typedef enum
+{
+    ELLIPS_UNKNOWN = -1,
+    ELLIPS_42 = 1,      // 1942
+    ELLIPS_WGS_76 = 2      // WGS-76
+
+}PanaramaEllips;
+
+typedef enum
+{
+    CMU_METRE=1,
+    CMU_DECIMETRE,
+    CMU_CENTIMETRE,
+    CMU_MILLIMETRE,
+    CMU_DEGREE,
+    CMU_RADIAN
+} CoordinateMeasUnit;
+
+typedef struct
+{
+    PanaramaProjCode iProjSys;      /* Projection of initial. the material */
+    PanaramaDatumCode iDatum;       /* Coordinate system */
+    PanaramaEllips iEllips;         /* Form of the ellipsoid */
+    CoordinateMeasUnit unitInPlan;
+} SXFMathBase;
+
+typedef struct
+{
+    long double   dfMainPar1      ; /* First main parallel (contains 0) */
+    long double   dfMainPar2      ; /* Second main parallel (contains the value of the scale factor) */
+    long double   dfAxialMer      ; /* Axial meridian (contains the value of the length of principal point) */
+    long double   dfMainPtPar     ; /* Parallel of the principal point (contains the value of the latitude of principal point) */
+    long double   dfFalseNorthing ; /* Displacement to the north (in the meters) */
+    long double   dfFalseEasting  ; /* Displacement to the east (in the meters) */
+} ProjectionInfo;
+
+
+/**
+ * List of SXF file format geometry types.
+ */
+typedef enum org_sxf_geometry_type
+{
+    sxfLine    = 0,      /* MultiLineString geometric object                  */
+    sxfPolygon = 1,      /* Polygon geometric object                          */
+    sxfPoint   = 2,      /* MultiPoint geometric object                       */
+    sxfText    = 3,      /* LineString geometric object with associated label */
+    sxfVector  = 4,      /* Vector geometric object with associated label */
+    sxfTextTemplate    = 5      /*  */
+} OGRsxfGeometryType;
+
+typedef struct
+{
+    OGRsxfGeometryType geometryType;    /* Nature of the localization (0- Linear, 2- Area, 3- Point, 4- Text) */
+    GInt32   iCC;                       /* CLASSIFICATION CODE */
+    bool bHazSemantics;                 /* Presence of semantics (0-not present, 1-present) */
+    GUInt16 nObjNumb;                   /* Number in the group */
+    GByte bDimIdea;                     /* Dimensionality of the idea (0- 2D, 1- 3D) */
+    GUInt16 nSubObjCount;               /* Number of sub-objects */
+    GByte bCertifSize;                  /* Size of the element of the certificate (Note 10) */
+    GByte bElemType;                    /* Type of the element of the certificate (0- Integers, 2- Float)(H always in float) */
+    GByte bHazTyingVect;                /* The presence of the vector of the tying (0-not present, 1-present) */
+    GUInt16 nPointsCount;               /* Number of points of the certificate */
+
+}SXFObjectInfo;
+
+/**
+ *  Semantics Attribute types
+ */
+typedef enum
+{
+    sctASCIIZ_DOS = 0,
+    sctOneByte = 1,
+    sctTwoByte = 2,
+    sctForeByte = 4,
+    sctEightByte = 8,
+    sctANSI_Windows = 126,
+    sctUNICODE_UNIX = 127,
+    sctBigString = 128
+} AttributeTypeSXFOBJ;
 
 /**
  * HEADER OF THE RSC FILE
@@ -193,210 +323,7 @@ typedef struct{
     unsigned nColorsInPalette;
 } RecordRSCHEAD;
 
- /**
- * PASSPORT OF THE SXF FILE
- */
- typedef struct {
-	char szCreateDate[12] ;  /* DATE OF THE CREATION OF FILE (DD/MM/GG \ 0) */
-	char szName[32]       ;  /* NOMENCLATURE OF THE SHEET (ANSI) */
-	GUInt32  nScale        ;  /* SCALE OF SHEET (DENOMINATOR) */
-	char szSheetName[32]  ;  /* CODE NAME OF THE SHEET  (ASCIIZ) */
-
-               /* INFORMATION FLAGS */
-	GByte   bDataFlag       :2, /* Flag of the state of the data (Note 1) */
-			bProjCorres     :1, /* Flag of the correspondence to the projection (Note 2) */
-			bpnalrealk      :2, /* Flag of the presence of the real coordinates (Note 3) */
-			bCodingFlag     :2, /* Flag of the method of the coding (Note 4) */
-			bTableGen       :1; /* Table of the generalization (Note 5) */
- 
-	GByte   bSigCoding      ;   /* flag of coding the signature (Note 6) */
-	GByte   bCoordAccu      ;   /* flag of the accuracy of the coordinates (Note 7) */
-	GByte   bFrameFlag      :1, /* sign of the special sorting of the data (regulated in a special manner) */
-			bReserve1       :7; /* Reserve = 0 */
- 
-	GUInt32  iMapCC   ; /* Classifier of the map objects */
- 
-	/* RECTANGULAR COORDINATES OF THE ANGLES OF SHEET (in meters) */
-	long double   dfXsw  ; /* X southwestern angle (vertical line) */
-	long double      dfYsw  ; /* Y  */
-	long double   dfXnw  ; /* X the North Western angle */
-	long double   dfYnw  ; /* Y  */
-	long double   dfXne  ; /* X the northeastern angle */
-	long double   dfYne  ; /* Y  */
-	long double   dfXse  ; /* X the southeastern angle */
-	long double   dfYse  ; /* Y  */
-
-	/* GEODETIC COORDINATES OF THE ANGLES OF THE SHEET (in radians) */
-	long double   dfBsw   ; /* B  */
-	long double   dfLsw   ; /* L  */
-	long double   dfBnw   ; /* B  */
-	long double   dfLnw   ; /* L  */
-	long double   dfBne   ; /* B  */
-	long double   dfLne   ; /* L  */
-	long double   dfBse   ; /* B  */
-	long double   dfLse   ; /* L  */
-
-	GByte iEllips       ; /* Form of the ellipsoid */
-	GByte iHeightSys    ; /* System of the heights */
-	GByte iProjSys      ; /* Projection of initial. the material */
-	GByte iDatum        ; /* Coordinate system */
-	GByte iPlanUoM      ; /* Unit of measurement in the plan 
-						   * (0- meters (or samples), 64 - radians, 65 - degrees) */
-	GByte iVertUoM      ; /* Unit of measurement on the height (0- meters) */
-	GByte iFrameForm    ; /* Form of the framework (Note 8) */
-	GByte iMapType      ; /* Generalized type of the map */
-
-	char   szDateSurv[12]   ; /* Date of ground survey (DD/MM/OF GG \ 0) */
-	GByte  iMatForme        ; /* Form of the source material (1-Map, 2-Orthophoto, 3-Photo) */
-	GByte  iMatType         ; /* Type of the source material (1-Map, 2-Photo) */
-	GByte  iZoneID          ; /* The identifier of zone [MSK]-63 (A-X or 0) */
-	GByte  iLimit           ; /* The sign of the limitation of map by the framework */
-							/* (1 – map is limited by the framework in the radians) */
-
-	long double   dfMagDecl     ; /* The magnetic declination */
-	long double   dfAvgMerConv  ; /* Average convergence of meridians */
-	long double   dfMagDeclChg  ; /* The annual change in the magnetic declination */
-	char          szDateMag[12] ; /* Date of the measurement of the declination */
-	GInt32           iReserve2     ; /* Reserve */
-
-	long double    dfCntrInterval   ; /* Contour interval (in meters) */
-	long double    dfRotAngle        ; /* Angle of the turn of axes for the local coordinate systems
-									   * (in radians clockwise) */
-
-
-	GInt32  iDeviceCapability         ; /* CHARACTERISTICS OF INSTRUMENT  */
-		/* The resolution of the instrument 
-		 * Points per meter (if the value more than zero, usually - 20 000).
-		 * If the flag of the presence of real coordinates is not equal to zero - it is ignored. */
-
-	/* Arrangement of the framework on the instrument: (in the system of instrument) 
-	 * X on the vertical line
-	 * Y along the horizontal */
-
-	GUInt32   dfXswp     ; /* X  */
-	GUInt32   dfYswp     ; /* Y  */
-	GUInt32   dfXnwp     ; /* X  */
-	GUInt32   dfYnwp     ; /* Y  */
-	GUInt32   dfXnep     ; /* X  */
-	GUInt32   dfYnep     ; /* Y  */
-	GUInt32   dfXsep     ; /* X  */
-	GUInt32   dfYsep     ; /* Y  */
- 
-
-	GInt32   iFrameCC  ; /* CLASSIFICATION CODE OF THE FRAMEWORK OF THE OBJECT 
-					   * From the classifier of the objects */
-
-	/* Special features of filling of the data about the projection
-	 * fields are filled up as follows for the generalized type of map "topographic local": */
-	long double   dfMainPar1      ; /* First main parallel (contains 0) */
-	long double   dfMainPar2      ; /* Second main parallel (contains the value of the scale factor) */
-	long double   dfAxialMer      ; /* Axial meridian (contains the value of the length of principal point) */
-	long double   dfMainPtPar     ; /* Parallel of the principal point (contains the value of the latitude of principal point) */
-	long double   dfFalseNorthing ; /* Displacement to the north (in the meters) */
-	long double   dfFalseEasting  ; /* Displacement to the east (in the meters) */
-}RecordSXFPSP;
-
-
-/**
- * DESCRIPTOR OF THE SXF FILE
- */
- 
-typedef struct {
-GInt32   iDataID        ; /* Identifier of data (0x00544144 (DAT)) */
-GInt32   nDescLength    ; /* Length of the descriptor */
-char  szSheetNom[32] ; /* Nomenclature of sheet (ASCIIZ) */ 
-GInt32   nObjCount      ; /* Number of recordings of the data */
-
-               /* INFORMATION FLAGS */
- GByte   bDataFlag       :2, /* Flag of the state of the data (Note 1) */
-         bProjCorres     :1, /* Flag of the correspondence to the projection (Note 2) */
-         bpnalrealk      :2, /* Flag of the presence of the real coordinates (Note 3) */
-         bCodingFlag     :2, /* Flag of the method of the coding (Note 4) */
-         bTableGen       :1; /* Table of the generalization (Note 5) */
-
- GByte   bSigCoding      ; /* flag of coding the signature (Note 6) */
- GUInt16 iPlaceholder2    ; /* Reserve  = 0                 */
-
- GUInt16   iObjClass  ; /* Classifier of the objects */
- GUInt16   iSemClass  ; /* Classifier of semantics */
-} RecordSXFDSC;
-
-/**
- *    SXF RECORD HEADER 
- */
- 
-typedef struct {
-GInt32   iRecordID      ;  /* IDENTIFIER OF THE BEGINNING OF RECORD (0x7FFF7FFF) */
-GInt32   nRecordLength  ;  /* THE OVERALL LENGTH OF RECORD (with the title) */
-GInt32   nCertifLength  ;  /* LENGTH OF CERTIFICATE (in bytes) */
-GInt32   iCC            ;  /* CLASSIFICATION CODE */
- 
-GUInt16  nObjNumb          ; /* Number in the group */
-GUInt16  nGrpNumb          ; /* The number of the group */
- 
-/* REFERENCE DATA */
-GUInt16  bGeomType   : 4, /* Nature of the localization (0- Linear, 2- Area, 3- Point, 4- Text) */
-      bFrameOutput  : 4, /* Sign of output to the framework (Note 9) */
-      bClosureSign  : 1, /* Sign of the closure (0- not Locked, 1- Locked) */
-      bHazSemantics : 1, /* Presence of semantics (0-not present, 1-present) */
-      bCertifSize   : 1, /* Size of the element of the certificate (Note 10) */
-      bHazTyingVect : 1, /* The presence of the vector of the tying (0-not present, 1-present) */
-      bUnicodeSign  : 1, /* The sign of text in UNICODE (0- , 1- UNICODE) */
-      bReserve      : 3; /* Reserve  */
-
-GByte  bRecordFormat : 1, /* Format of the record of the certificate (0- linear size, 1-vector format ) */
-       bDimIdea      : 1, /* Dimensionality of the idea (0- 2D, 1- 3D) */
-       bElemType     : 1, /* Type of the element of the certificate (0- Integers, 2- Float)(H always in float) */
-       bTextSign     : 1, /* Sign of certificate with the text (Note 11) */
-       bHazDrawing   : 1, /* The presence of drawing (0-not present, 1-present) */
-       bMasDrawing     : 1, /* [Masshtabiruemost] of the drawing (Note 12) */
-       bSplnConst    : 2; /* The sign of the construction of spline on the certificate (Note 13) */
-
-GByte    nVisLow : 4, /* Lower boundary of the visibility */
-         nVisHig : 4; /* Upper boundary of the visibility */
-
-GUInt32   nLOPointsCount ; /* Number of points of certificate for the large objects */
-GUInt16   nSubObjCount   ; /* Number of sub-objects */
-GUInt16   nPointsCount   ; /* Number of points of the certificate */
-} RecordSXFOBJ;
 
 
 
-/**
- *  Semantics Attribute types
- */
-typedef enum 
-{
-	sctASCIIZ_DOS = 0,
-	sctOneByte = 1,
-	sctTwoByte = 2,
-	sctForeByte = 4,
-	sctEightByte = 8,
-	sctANSI_Windows = 126,
-	sctUNICODE_UNIX = 127,
-	sctBigString = 128,
-} AttributeTypeSXFOBJ;
-
-
-/**
- *  "Panorama" projection codes
- */
-typedef enum
-{
-	PROJ_TM = 1,      // Gauss-Kruger (Transverse Mercator)
-	PROJ_LCC = 2,      // Lambert Conformal Conic 2SP
-	PROJ_UTM = 17,     // Universal Transverse Mercator (UTM)
-
-} PanaramaProjCode;
-
-/**
- *  "Panorama" datum codes
- */
-typedef enum
-{
-	DATUM_PUL_42 = 1,      // Pulkovo, 1942
-
-} PanaramaDatumCode;
 #endif  /* SXF_DEFS_H */
-
-
