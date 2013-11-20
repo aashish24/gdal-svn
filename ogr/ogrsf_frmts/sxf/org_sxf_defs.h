@@ -260,6 +260,7 @@ typedef struct
     GByte bElemType;                    /* Type of the element of the certificate (0- Integers, 2- Float)(H always in float) */
     GByte bHazTyingVect;                /* The presence of the vector of the tying (0-not present, 1-present) */
     GUInt16 nPointsCount;               /* Number of points of the certificate */
+    GByte bTextSign;                    /* Sign of certificate with the text (Note 11) */
 
 }SXFObjectInfo;
 

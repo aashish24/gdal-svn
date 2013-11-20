@@ -111,6 +111,21 @@ namespace
         else
             info.bElemType = 0;
 
+        if (version == IDSXFVERSION4)
+        {
+            if( (*(buf+22) & 0x08) == 0x08) //xхxх1xxх
+                info.bTextSign = 1;
+            else
+                info.bTextSign = 0;
+        }
+        else if (version == IDSXFVERSION3)
+        {
+            if( (*(buf+22) & 0x20) == 0x20) //xх1ххxxх
+                info.bTextSign = 1;
+            else
+                info.bTextSign = 0;
+        }
+
         info.nSubObjCount = *(GUInt16*)(buf+28);
 
         info.nPointsCount = *(GUInt16*)(buf+30);
@@ -129,20 +144,13 @@ OGRSXFLayer::OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialRefer
       objectsClassificators(objCls),
       poSXFInfo(new SXFInfo(sxfInfo))
 {
-    poFeatureDefn =new OGRFeatureDefn(pszLayerName);
-
     fpSXF = fp;
     nNextFID = 0;
     bIncorrectFType = FALSE;
     bIncorrectFClassificator = FALSE;
     bEOF = FALSE;
 
-    if(poSXFInfo->version == IDSXFVERSION4)
-        firstObjectOffset = 452;
-    else if(poSXFInfo->version == IDSXFVERSION3)
-        firstObjectOffset = 300;
-    lastObjectOffset = firstObjectOffset;
-
+    poFeatureDefn =new OGRFeatureDefn(pszLayerName);
     poFeatureDefn->Reference();
 
     OGRFieldDefn oClCodeField = OGRFieldDefn( "CLCODE", OFTInteger );
@@ -162,6 +170,11 @@ OGRSXFLayer::OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialRefer
     poFeatureDefn->AddFieldDefn( &oTextField );
 
 
+    if(poSXFInfo->version == IDSXFVERSION4)
+        firstObjectOffset = 452;
+    else if(poSXFInfo->version == IDSXFVERSION3)
+        firstObjectOffset = 300;
+    lastObjectOffset = firstObjectOffset;
     VSIFSeekL( fpSXF, firstObjectOffset,  SEEK_SET);
 
     std::set<GUInt16> unicClassifiers;
@@ -202,7 +215,7 @@ OGRSXFLayer::OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialRefer
             attributeOffset += 1;
 
             CPLString oFieldName;
-            oFieldName.Printf("SEMCODE_%d", code);
+            oFieldName.Printf("SC_%d", code);
 
             switch(type)
             {
@@ -577,7 +590,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
 				offset += 1;
 			
 				CPLString oFieldName;
-                oFieldName.Printf("SEMCODE_%d",characterCode);
+                oFieldName.Printf("SC_%d",characterCode);
 				CPLString oFieldValue;
 
 				switch(characterType)
@@ -910,18 +923,16 @@ OGRFeature *OGRSXFLayer::TranslateText( const SXFObjectInfo& objectInfo, char * 
         nOffset += TranslateXYH( objectInfo, psBuf , &dfX, &dfY ) ;
 
         poLS->addPoint( dfX  , dfY );
+    }
 
-    }    // for
-
-
-        poFeature->SetGeometryDirectly( poLS );
+    poFeature->SetGeometryDirectly( poLS );
 
 /*------------------     READING TEXT VALUE   ---------------------------------------*/
 
-if ( objectInfo.nSubObjCount == 0)
-  {
-      char * pszTxt = psRecordBuf +(16*objectInfo.nPointsCount);
+    if ( objectInfo.nSubObjCount == 0 && objectInfo.bTextSign == 1)
+    {
 
+        char * pszTxt = psRecordBuf + nOffset;
         GByte nTextL = (GByte) *pszTxt;
 
         char * pszTextBuf = (char *)CPLMalloc( nTextL+1 );
@@ -929,10 +940,10 @@ if ( objectInfo.nSubObjCount == 0)
         strncpy(pszTextBuf, (pszTxt+1),    nTextL+1);
 
         //TODO: Check encoding from sxf
-        poFeature->SetField("TEXT", CPLRecode(pszTextBuf, "CP1251", CPL_ENC_UTF8));
+        poFeature->SetField("TEXT", pszTextBuf);
  
-        CPLFree( pszTextBuf );  
-  }
+        CPLFree( pszTextBuf );
+    }
 
 
 /*****
@@ -941,7 +952,7 @@ if ( objectInfo.nSubObjCount == 0)
  *          - Translate 3D vector
  */
 
-        return poFeature;
+    return poFeature;
 }
 
 

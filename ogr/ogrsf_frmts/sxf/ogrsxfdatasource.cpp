@@ -656,12 +656,6 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
                   "SXF. Data are not corresponde to the projection." );
         return FALSE;
     }
-    if (oSXFInfo.informationFlags.realCoordinatesCompliance == false)
-    {
-        CPLError( CE_Failure, CPLE_NotSupported,
-                  "SXF. Data are not of the real coordinates." );
-        //return FALSE;
-    }
 
     oSXFInfo.mathBase = readSXFMathBase(fpSXF, oSXFInfo.version);
     oSXFInfo.nScale = readSXFMapScale(fpSXF, oSXFInfo.version);
