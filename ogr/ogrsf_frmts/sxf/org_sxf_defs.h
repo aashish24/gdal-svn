@@ -134,7 +134,7 @@
 #define IDSXFGRAPH     0X7FFF7FFE     /* graphics section */
 #define IDSXFVECT3D    0X7FFF7FFD     /* 3D vector section */
 
-#define FLAGSXFREALCOORDINATES 1		/* certificate in real coordinates */
+#include <map>
 
 #include "cpl_port.h"
 
@@ -173,7 +173,7 @@ typedef struct
 } SheetCornersCoordinates;
 
 
-/**
+/*
  *  "Panorama" projection codes
  */
 typedef enum
@@ -185,7 +185,7 @@ typedef enum
 
 } PanaramaProjCode;
 
-/**
+/*
  *  "Panorama" datum codes
  */
 typedef enum
@@ -195,7 +195,7 @@ typedef enum
 
 } PanaramaDatumCode;
 
-/**
+/*
  *  "Panorama" ellips codes
  */
 typedef enum
@@ -235,7 +235,7 @@ typedef struct
 } ProjectionInfo;
 
 
-/**
+/*
  * List of SXF file format geometry types.
  */
 typedef enum org_sxf_geometry_type
@@ -250,21 +250,73 @@ typedef enum org_sxf_geometry_type
 
 typedef struct
 {
-    OGRsxfGeometryType geometryType;    /* Nature of the localization (0- Linear, 2- Area, 3- Point, 4- Text) */
-    GInt32   iCC;                       /* CLASSIFICATION CODE */
-    bool bHazSemantics;                 /* Presence of semantics (0-not present, 1-present) */
-    GUInt16 nObjNumb;                   /* Number in the group */
-    GByte bDimIdea;                     /* Dimensionality of the idea (0- 2D, 1- 3D) */
-    GUInt16 nSubObjCount;               /* Number of sub-objects */
-    GByte bCertifSize;                  /* Size of the element of the certificate (Note 10) */
-    GByte bElemType;                    /* Type of the element of the certificate (0- Integers, 2- Float)(H always in float) */
-    GByte bHazTyingVect;                /* The presence of the vector of the tying (0-not present, 1-present) */
-    GUInt16 nPointsCount;               /* Number of points of the certificate */
-    GByte bTextSign;                    /* Sign of certificate with the text (Note 11) */
+    bool bHasTextSign;        /* Sign of certificate with the text (Note 11) */
 
-}SXFObjectInfo;
+    GUInt16 nPointsCount;     /* Number of points of the certificate */
 
-/**
+    GByte bElemSize;          /* Size of the element of the certificate (Note 10) */
+    GByte bElemType;          /* Type of the element of the certificate (0- Integers, 2- Float)(H always in float) */
+    GByte bDim;               /* Dimensionality of the idea (0- 2D, 1- 3D) */
+    GUInt16 nSubObjCount;     /* Number of sub-objects */
+
+} SXFRecordCertifInfo;
+
+typedef struct
+{
+    GInt32   iRecordID;         /* IDENTIFIER OF THE BEGINNING OF RECORD (0x7FFF7FFF) */
+    GInt32   nRecordLength;     /* THE OVERALL LENGTH OF RECORD (with the title) */
+    GInt32   nCertifLength;     /* LENGTH OF CERTIFICATE (in bytes) */
+    GInt32   iCC;               /* CLASSIFICATION CODE */
+
+    GUInt16  nObjNumb;  /* Number in the group */
+    GUInt16  nGrpNumb;  /* The number of the group */
+
+    /*
+     *  REFERENCE DATA
+     */
+    OGRsxfGeometryType bGeomType;
+
+    bool bHazSemantics;                 /* Presence of semantics*/
+    bool bHazTyingVect;                /* The presence of the vector of the tying (0-not present, 1-present) */
+
+    SXFRecordCertifInfo certifInfo;
+
+}SXFRecordInfo;
+
+
+/************************************************************************/
+/*                         RSCInfo                                      */
+/************************************************************************/
+typedef std::map<GUInt32, std::string> RSCObjects;
+struct RSCLayer
+{
+    GByte szLayerId;
+    std::string szLayerName;
+    RSCObjects rscObjects;
+};
+typedef std::map<GByte, RSCLayer> RSCLayers;
+
+
+/************************************************************************/
+/*                         SXFPassport                                  */
+/************************************************************************/
+struct SXFDeviceInfo
+{
+    GInt32  iDeviceCapability;
+    SheetCornersCoordinates deviceFrameCoordinates;
+};
+
+struct SXFPassport
+{
+    SXFVersion version;
+    SXFInformationFlags informationFlags;
+    SXFMathBase mathBase;
+    SXFDeviceInfo deviceInfo;
+    GUInt32  nScale;
+    SheetCornersCoordinates sheetRectCoordinates;
+};
+
+/*
  *  Semantics Attribute types
  */
 typedef enum
@@ -279,7 +331,7 @@ typedef enum
     sctBigString = 128
 } AttributeTypeSXFOBJ;
 
-/**
+/*
  * HEADER OF THE RSC FILE
  */
 typedef struct  {
@@ -323,8 +375,5 @@ typedef struct{
     char szFontEnc[4];
     unsigned nColorsInPalette;
 } RecordRSCHEAD;
-
-
-
 
 #endif  /* SXF_DEFS_H */

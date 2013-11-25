@@ -1033,7 +1033,7 @@ int main( int argc, char ** argv )
 /* -------------------------------------------------------------------- */
     for( i = 0; i < nLayerCount; i++ )
     {
-        OGRLayerH hLayer = OGR_DS_GetLayerByName( hSrcDS, CPLRecode(papszLayers[i], "CP1251", "UTF-8"));
+        OGRLayerH hLayer = OGR_DS_GetLayerByName( hSrcDS, papszLayers[i]);
         if( hLayer == NULL )
         {
             fprintf( stderr, "Unable to find layer \"%s\", skipping.\n", 

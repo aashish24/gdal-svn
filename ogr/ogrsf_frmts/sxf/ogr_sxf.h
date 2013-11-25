@@ -37,37 +37,12 @@
 #include "ogrsf_frmts.h"
 #include "org_sxf_defs.h"
 
-/************************************************************************/
-/*                         RSCInfo                                      */
-/************************************************************************/
-typedef std::map<GUInt32, std::string> RSCObjects;
-struct RSCLayer
-{
-    GByte szLayerId;
-    std::string szLayerName;
-    RSCObjects rscObjects;
-};
-typedef std::map<GByte, RSCLayer> RSCLayers;
+/*
+ *  Record headr size in sxf v.4 and sxf v.3
+ */
+const static size_t recordHeaderSize = 32;
 
-
-/************************************************************************/
-/*                         SXFInfo                                      */
-/************************************************************************/
-struct SXFDeviceInfo
-{
-    GInt32  iDeviceCapability;
-    SheetCornersCoordinates deviceFrameCoordinates;
-};
-
-struct SXFInfo
-{
-    SXFVersion version;
-    SXFInformationFlags informationFlags;
-    SXFMathBase mathBase;
-    SXFDeviceInfo deviceInfo;
-    GUInt32  nScale;
-    SheetCornersCoordinates sheetRectCoordinates;
-};
+bool readSXFRecord(VSILFILE* fpSXF, const SXFPassport& passport, SXFRecordInfo& recordInfo);
 
 /************************************************************************/
 /*                         OGRSXFLayer                                */
@@ -91,20 +66,20 @@ protected:
 	
     RSCLayer*  oRSCLayer;
 
-    std::tr1::shared_ptr<SXFInfo> poSXFInfo;
+    std::tr1::shared_ptr<SXFPassport> poSXFPassport;
 
 	virtual OGRFeature *       GetNextRawFeature();
 
-    GUInt32 TranslateXYH ( const SXFObjectInfo& objectInfo,     char *psBuff,
+    GUInt32 TranslateXYH ( const SXFRecordCertifInfo& certifInfo,     char *psBuff,
                           double *dfX, double *dfY, double *dfH = NULL);
 
 
-    OGRFeature *TranslatePoint( const SXFObjectInfo& objectInfo, char * psRecordBuf );
-    OGRFeature *TranslateText ( const SXFObjectInfo& objectInfo, char * psBuff );
-    OGRFeature *TranslatePolygon ( const SXFObjectInfo& objectInfo, char * psBuff );
-    OGRFeature *TranslateLine ( const SXFObjectInfo& objectInfo, char * psBuff );
+    OGRFeature *TranslatePoint( const SXFRecordCertifInfo& certifInfo, char * psRecordBuf );
+    OGRFeature *TranslateText ( const SXFRecordCertifInfo& certifInfo, char * psBuff );
+    OGRFeature *TranslatePolygon ( const SXFRecordCertifInfo& certifInfo, char * psBuff );
+    OGRFeature *TranslateLine ( const SXFRecordCertifInfo& certifInfo, char * psBuff );
 public:
-    OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialReference *sr, SXFInfo&  sxfInfo, std::set<GInt32> objCls, RSCLayer*  rscLayer);
+    OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialReference *sr, SXFPassport&  sxfPassport, std::set<GInt32> objCls, RSCLayer*  rscLayer);
     ~OGRSXFLayer();
 
 	virtual void                ResetReading();
@@ -134,7 +109,7 @@ class OGRSXFDataSource : public OGRDataSource
 
     RSCLayers   rscLayers;
 
-    void CreateLayers(SXFInfo& sxfInfo, OGRSpatialReference *poSRS);
+    void CreateLayers(SXFPassport& sxfPassport, OGRSpatialReference *poSRS);
     void ReadRSCLayers(RecordRSCHEAD &RSCFileHeader);
   public:
                         OGRSXFDataSource();

@@ -164,57 +164,57 @@ namespace
 
         switch(*buf)
         {
-            case PanaramaEllips::ELLIPS_42:
+            case ELLIPS_42:
             {
-               mathBase.iEllips =  PanaramaEllips::ELLIPS_42;
+               mathBase.iEllips =  ELLIPS_42;
                break;
             }
-            case PanaramaEllips::ELLIPS_WGS_76:
+            case ELLIPS_WGS_76:
             {
-               mathBase.iEllips =  PanaramaEllips::ELLIPS_WGS_76;
+               mathBase.iEllips =  ELLIPS_WGS_76;
                break;
             }
             default:
             {
-                mathBase.iEllips =  PanaramaEllips::ELLIPS_UNKNOWN;
+                mathBase.iEllips =  ELLIPS_UNKNOWN;
                 break;
             }
         }
 
         switch( *(buf+2) )
         {
-            case PanaramaProjCode::PROJ_TM:
+            case PROJ_TM:
             {
-               mathBase.iProjSys =  PanaramaProjCode::PROJ_TM;
+               mathBase.iProjSys =  PROJ_TM;
                break;
             }
-            case PanaramaProjCode::PROJ_LCC:
+            case PROJ_LCC:
             {
-               mathBase.iProjSys =  PanaramaProjCode::PROJ_LCC;
+               mathBase.iProjSys =  PROJ_LCC;
                break;
             }
-            case PanaramaProjCode::PROJ_UTM:
+            case PROJ_UTM:
             {
-               mathBase.iProjSys =  PanaramaProjCode::PROJ_UTM;
+               mathBase.iProjSys =  PROJ_UTM;
                break;
             }
             default:
             {
-                mathBase.iProjSys =  PanaramaProjCode::PROJ_UNKNOWN;
+                mathBase.iProjSys =  PROJ_UNKNOWN;
                 break;
             }
         }
 
         switch( *(buf+3) )
         {
-            case PanaramaDatumCode::DATUM_PUL_42:
+            case DATUM_PUL_42:
             {
-               mathBase.iDatum =  PanaramaDatumCode::DATUM_PUL_42;
+               mathBase.iDatum =  DATUM_PUL_42;
                break;
             }
             default:
             {
-                mathBase.iDatum =  PanaramaDatumCode::DATUM_UNKNOWN;
+                mathBase.iDatum =  DATUM_UNKNOWN;
                 break;
             }
         }
@@ -225,22 +225,22 @@ namespace
             {
                 case 0:
                 {
-                    mathBase.unitInPlan = CoordinateMeasUnit::CMU_METRE;
+                    mathBase.unitInPlan = CMU_METRE;
                     break;
                 }
                 case 64:
                 {
-                    mathBase.unitInPlan = CoordinateMeasUnit::CMU_RADIAN;
+                    mathBase.unitInPlan = CMU_RADIAN;
                     break;
                 }
                 case 65:
                 {
-                    mathBase.unitInPlan = CoordinateMeasUnit::CMU_DEGREE;
+                    mathBase.unitInPlan = CMU_DEGREE;
                     break;
                 }
                 default:
                 {
-                    mathBase.unitInPlan = CoordinateMeasUnit::CMU_METRE;
+                    mathBase.unitInPlan = CMU_METRE;
                     break;
                 }
             }
@@ -249,37 +249,37 @@ namespace
             {
                 case 0:
                 {
-                    mathBase.unitInPlan = CoordinateMeasUnit::CMU_METRE;
+                    mathBase.unitInPlan = CMU_METRE;
                     break;
                 }
                 case 1:
                 {
-                    mathBase.unitInPlan = CoordinateMeasUnit::CMU_DECIMETRE;
+                    mathBase.unitInPlan = CMU_DECIMETRE;
                     break;
                 }
                 case 2:
                 {
-                    mathBase.unitInPlan = CoordinateMeasUnit::CMU_CENTIMETRE;
+                    mathBase.unitInPlan = CMU_CENTIMETRE;
                     break;
                 }
                 case 3:
                 {
-                    mathBase.unitInPlan = CoordinateMeasUnit::CMU_MILLIMETRE;
+                    mathBase.unitInPlan = CMU_MILLIMETRE;
                     break;
                 }
                 case 130:
                 {
-                    mathBase.unitInPlan = CoordinateMeasUnit::CMU_RADIAN;
+                    mathBase.unitInPlan = CMU_RADIAN;
                     break;
                 }
                 case 129:
                 {
-                    mathBase.unitInPlan = CoordinateMeasUnit::CMU_DEGREE;
+                    mathBase.unitInPlan = CMU_DEGREE;
                     break;
                 }
                 default:
                 {
-                    mathBase.unitInPlan = CoordinateMeasUnit::CMU_METRE;
+                    mathBase.unitInPlan = CMU_METRE;
                     break;
                 }
             }
@@ -365,16 +365,6 @@ namespace
             CPLError(CE_Fatal, CPLE_NotSupported , "Function readSXFSheetCornersCoordinates does not support SXF File version %x", version);
         }
 
-        /*
-        printf("fr dfXsw: %f\n", deviceInfo.deviceFrameCoordinates.dfXsw);
-        printf("fr dfYsw: %f\n", deviceInfo.deviceFrameCoordinates.dfYsw);
-        printf("fr dfXnw: %f\n", deviceInfo.deviceFrameCoordinates.dfXnw);
-        printf("fr dfYnw: %f\n", deviceInfo.deviceFrameCoordinates.dfYnw);
-        printf("fr dfXne: %f\n", deviceInfo.deviceFrameCoordinates.dfXne);
-        printf("fr dfYne: %f\n", deviceInfo.deviceFrameCoordinates.dfYne);
-        printf("fr dfXse: %f\n", deviceInfo.deviceFrameCoordinates.dfXse);
-        printf("fr dfYse: %f\n", deviceInfo.deviceFrameCoordinates.dfYse);
-        */
         return deviceInfo;
     }
 
@@ -403,22 +393,6 @@ namespace
             const SXFVersion& version)
     {
         OGRSpatialReference poSRS;
-        /*
-        printf("RECTANGULAR COORDINATES OF THE ANGLES OF SHEET (in meters):\n");
-        printf("	dfXsw: %f \n", sheetRectCoordinates.dfXsw);
-        printf("	dfYsw: %f \n", sheetRectCoordinates.dfYsw);
-        printf("	dfXnw: %f \n", sheetRectCoordinates.dfXnw);
-        printf("	dfYnw: %f \n", sheetRectCoordinates.dfYnw);
-        printf("	dfXne: %f \n", sheetRectCoordinates.dfXne);
-        printf("	dfYne: %f \n", sheetRectCoordinates.dfYne);
-        printf("	dfXse: %f \n", sheetRectCoordinates.dfXse);
-        printf("	dfYse: %f \n", sheetRectCoordinates.dfYse);
-
-        printf("MATH BASE:\n");
-        printf("	iProjSys: %d \n", mathBase.iProjSys);
-        printf("	iDatum: %d \n", mathBase.iDatum);
-        printf("	iEllips: %d \n", mathBase.iEllips);
-        */
 
         ProjectionInfo projectionInfo;
 
@@ -456,25 +430,15 @@ namespace
         else
             CPLError(CE_Fatal, CPLE_NotSupported , "Function calculateOGRSpatialReference does not support SXF File version %x", version);
 
-        /*
-        printf("ProjectionInfo:\n");
-        printf("    dfMainPar1: %f \n", projectionInfo.dfMainPar1);
-        printf("    dfMainPar2: %f \n", projectionInfo.dfMainPar2);
-        printf("    dfAxialMer: %f \n", projectionInfo.dfAxialMer);
-        printf("    dfMainPtPar: %f \n", projectionInfo.dfMainPtPar);
-        printf("    dfFalseNorthing: %f \n", projectionInfo.dfFalseNorthing);
-        printf("    dfFalseEasting: %f \n", projectionInfo.dfFalseEasting);
-        */
-
         double ScaleFactor = 1.0;
         size_t ZoneNumber = 0;
 
-        if (mathBase.iProjSys == PanaramaProjCode::PROJ_TM)
+        if (mathBase.iProjSys == PROJ_TM)
         {
-            if (mathBase.iDatum == PanaramaDatumCode::DATUM_PUL_42 &&
+            if (mathBase.iDatum == DATUM_PUL_42 &&
                 sheetRectCoordinates.dfYnw >= 1000000)
             {
-                ZoneNumber = sheetRectCoordinates.dfYnw / 1000000;
+                ZoneNumber = (size_t)(sheetRectCoordinates.dfYnw / 1000000);
                 if (ZoneNumber >= 2 && ZoneNumber <=32)
                 {
                     int EPSG = 28400 + ZoneNumber;
@@ -484,7 +448,7 @@ namespace
             }
 
             double axialMerInDegrees = projectionInfo.dfAxialMer * 180 / M_PI;
-            ZoneNumber = axialMerInDegrees / 6 + 1;
+            ZoneNumber = (size_t)(axialMerInDegrees / 6 + 1);
 
             if (version == IDSXFVERSION3)
             {
@@ -499,16 +463,16 @@ namespace
             return poSRS;
         }
 
-        if (mathBase.iProjSys == PanaramaProjCode::PROJ_UTM)
+        if (mathBase.iProjSys == PROJ_UTM)
         {
             double ScaleFactor = 0.9996;
             size_t ZoneNumber = 0;
             double axialMerInDegrees = projectionInfo.dfAxialMer * 180 / M_PI;
 
             if (axialMerInDegrees/6 + 1 > 30)
-                ZoneNumber = axialMerInDegrees/6 + 1 - 30;
+                ZoneNumber = (size_t)(axialMerInDegrees/6 + 1 - 30);
             else
-                ZoneNumber = axialMerInDegrees/6 + 1 + 30;
+                ZoneNumber = (size_t)(axialMerInDegrees/6 + 1 + 30);
 
             if (version == IDSXFVERSION3)
             {
@@ -533,7 +497,119 @@ namespace
 
     }
 
+    SXFRecordCertifInfo getSXFRecordCertifInfo(GByte* buf, const SXFVersion& version)
+    {
+        SXFRecordCertifInfo certifInfo;
+
+        if( (*(buf+22) & 0x02) == 0x02) //xххххх1х
+            certifInfo.bDim = 1;
+        else
+            certifInfo.bDim = 0;
+
+        if( (*(buf+21) & 0x04) == 0x04) //xхххх1xх
+            certifInfo.bElemSize = 1;
+        else
+            certifInfo.bElemSize = 0;
+
+        if( (*(buf+22) & 0x04) == 0x04) //xхххх1xх
+            certifInfo.bElemType = 1;
+        else
+            certifInfo.bElemType = 0;
+
+        if (version == IDSXFVERSION4)
+        {
+            if( (*(buf+22) & 0x08) == 0x08) //xхxх1xxх
+                certifInfo.bHasTextSign = true;
+            else
+                certifInfo.bHasTextSign = false;
+        }
+        else if (version == IDSXFVERSION3)
+        {
+            if( (*(buf+22) & 0x20) == 0x20) //xх1ххxxх
+                certifInfo.bHasTextSign = true;
+            else
+                certifInfo.bHasTextSign = false;
+        }
+
+        certifInfo.nPointsCount = *(GUInt16*)(buf+30);
+
+        certifInfo.nSubObjCount = *(GUInt16*)(buf+28);
+
+        return certifInfo;
+    }
+
 }
+
+bool readSXFRecord(VSILFILE* fpSXF, const SXFPassport& passport, SXFRecordInfo& recordInfo)
+{
+    GByte* buf = (GByte*)CPLMalloc(recordHeaderSize);
+
+    size_t count = VSIFReadL( buf, 1, recordHeaderSize, fpSXF);
+
+    if(count != recordHeaderSize)
+    {
+        return false;
+    }
+
+    recordInfo.certifInfo = getSXFRecordCertifInfo(buf, passport.version);
+
+    recordInfo.nRecordLength = *(GInt32*)(buf+4);
+    recordInfo.nCertifLength = *(GInt32*)(buf+8);
+
+    recordInfo.iCC = *(GInt32*)(buf+12);
+
+    recordInfo.nObjNumb = *(GUInt16*)(buf+16);
+
+    if (passport.version == IDSXFVERSION4)
+    {
+        GByte code = *(buf+20) & 0x0f;
+        if ( code == 0x00 ) // xxxx0000
+            recordInfo.bGeomType = sxfLine;
+        else if ( code == 0x01 ) // xxxx0001
+            recordInfo.bGeomType = sxfPolygon;
+        else if ( code == 0x02 ) // xxxx0010
+            recordInfo.bGeomType = sxfPoint;
+        else if ( code == 0x03 ) // xxxx0011
+            recordInfo.bGeomType = sxfText;
+        else if ( code == 0x04 ) // xxxx0100
+            recordInfo.bGeomType = sxfVector;
+        else if ( code == 0x05 ) // xxxx0101
+            recordInfo.bGeomType = sxfTextTemplate;
+    }
+    else if (passport.version == IDSXFVERSION3)
+    {
+        GByte code = *(buf+20) & 0x0f;
+        if ( code == 0x00 ) // xxxxxx00
+            recordInfo.bGeomType = sxfLine;
+        else if ( code == 0x01 ) // xxxxxx01
+            recordInfo.bGeomType = sxfPolygon;
+        else if ( code == 0x02 ) // xxxxxx10
+            recordInfo.bGeomType = sxfPoint;
+        else if ( code == 0x03 ) // xxxxxx11
+            recordInfo.bGeomType = sxfText;
+    }
+
+    if( (*(buf+21) & 0x02) == 0x02) //xххххх1х
+        recordInfo.bHazSemantics = true;
+    else
+        recordInfo.bHazSemantics = false;
+
+
+    if (passport.version == IDSXFVERSION4)
+    {
+        if( (*(buf+21) & 0x08) == 0x08) //xххх1xxх
+            recordInfo.bHazTyingVect = true;
+        else
+            recordInfo.bHazTyingVect = false;
+    }
+    else if (passport.version == IDSXFVERSION3)
+    {
+        recordInfo.bHazTyingVect = false;
+    }
+
+    return true;
+}
+
 /************************************************************************/
 /*                      OGRSXFDataSource()                       */
 /************************************************************************/
@@ -555,7 +631,7 @@ OGRSXFDataSource::OGRSXFDataSource()
 OGRSXFDataSource::~OGRSXFDataSource()
 
 {
-    for( int i = 0; i < nLayers; i++ )
+    for( size_t i = 0; i < nLayers; i++ )
         delete papoLayers[i];
     CPLFree( papoLayers );
 }
@@ -593,7 +669,7 @@ int OGRSXFDataSource::TestCapability( const char * pszCap )
 OGRLayer *OGRSXFDataSource::GetLayer( int iLayer )
 
 {
-    if( iLayer < 0 || iLayer >= nLayers )
+    if( iLayer < 0 || iLayer >= (int)nLayers )
         return NULL;
     else
         return papoLayers[iLayer];
@@ -605,7 +681,7 @@ OGRLayer *OGRSXFDataSource::GetLayer( int iLayer )
 
 int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
 {
-    SXFInfo oSXFInfo;
+    SXFPassport oSXFPassport;
 
     size_t nObjectsRead;
 
@@ -635,34 +711,32 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
     }
 
 
-    oSXFInfo.version = readSXFVersion(fpSXF);
-    if ( oSXFInfo.version == IDSXFVERSIONUNKNOWN )
+    oSXFPassport.version = readSXFVersion(fpSXF);
+    if ( oSXFPassport.version == IDSXFVERSIONUNKNOWN )
     {
         CPLError(CE_Failure, CPLE_NotSupported , "SXF File version not supported");
         CloseFile();
         return FALSE;
     }
 
-    oSXFInfo.informationFlags = readSXFInformationFlags(fpSXF, oSXFInfo.version);
-    if (oSXFInfo.informationFlags.dataState != SXFDataState::SXF_DS_EXCHANGE)
+    oSXFPassport.informationFlags = readSXFInformationFlags(fpSXF, oSXFPassport.version);
+    if (oSXFPassport.informationFlags.dataState != SXF_DS_EXCHANGE)
     {
         CPLError( CE_Failure, CPLE_NotSupported,
                   "SXF. Wrong state of the data." );
         //return FALSE;
     }
-    if (oSXFInfo.informationFlags.projectionDataCompliance == false)
+    if (oSXFPassport.informationFlags.projectionDataCompliance == false)
     {
         CPLError( CE_Failure, CPLE_NotSupported,
                   "SXF. Data are not corresponde to the projection." );
         return FALSE;
     }
 
-    oSXFInfo.mathBase = readSXFMathBase(fpSXF, oSXFInfo.version);
-    oSXFInfo.nScale = readSXFMapScale(fpSXF, oSXFInfo.version);
-
-    oSXFInfo.deviceInfo = readSXFDeviceInfo(fpSXF, oSXFInfo.version);
-
-    oSXFInfo.sheetRectCoordinates = readSXFSheetCornersCoordinates(fpSXF, oSXFInfo.version);
+    oSXFPassport.mathBase = readSXFMathBase(fpSXF, oSXFPassport.version);
+    oSXFPassport.nScale = readSXFMapScale(fpSXF, oSXFPassport.version);
+    oSXFPassport.deviceInfo = readSXFDeviceInfo(fpSXF, oSXFPassport.version);
+    oSXFPassport.sheetRectCoordinates = readSXFSheetCornersCoordinates(fpSXF, oSXFPassport.version);
 
 /*---------------- TRY READ THE RSC FILE HEADER  -----------------------*/
 
@@ -698,27 +772,21 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
         }
     }
 
-/*---------------- Reda RSC file -----------------------------------*/
-
     if (fpRSC != NULL)
     {
         ReadRSCLayers(RSCFileHeader);
     }
 
-/*---------------- Spatial index for all Layers --------------------*/
-
     OGRSpatialReference *poSRS = new OGRSpatialReference();
-    *poSRS = calculateOGRSpatialReference(fpSXF, oSXFInfo.mathBase, oSXFInfo.sheetRectCoordinates, oSXFInfo.version);
+    *poSRS = calculateOGRSpatialReference(fpSXF, oSXFPassport.mathBase, oSXFPassport.sheetRectCoordinates, oSXFPassport.version);
 
-/*---------------- Layers Creation ---------------------------------*/ 
-
-    CreateLayers(oSXFInfo, poSRS);
+    CreateLayers(oSXFPassport, poSRS);
 
     return TRUE;
 }
 
 void OGRSXFDataSource::CreateLayers(
-        SXFInfo& sxfInfo,
+        SXFPassport& sxfInfo,
         OGRSpatialReference *poSRS)
 {
     CPLDebug("SXF","Create layers");
@@ -751,32 +819,33 @@ void OGRSXFDataSource::CreateLayers(
     {
         CPLDebug("SXF","Layers from SXF");
 
-        GByte* buf = (GByte*)CPLMalloc(32);
         std::set<GInt32> classifiersCodes;
+        SXFRecordInfo recordInfo;
 
         vsi_l_offset objectOffset = VSIFTellL( fpSXF );
-        while(VSIFReadL( buf, 32, 1, fpSXF ))
+
+        while( readSXFRecord(fpSXF, sxfInfo, recordInfo) )
         {
-            GInt32 nRecordLength = *(GInt32*)(buf+4);
-            GInt32 iCC = *(GInt32*)(buf+12);
+            VSIFSeekL(fpSXF, recordInfo.nRecordLength - recordHeaderSize, SEEK_CUR);
 
-            VSIFSeekL(fpSXF, nRecordLength - 32, SEEK_CUR);
-
-            if ( classifiersCodes.find(iCC) == classifiersCodes.end())
+            if ( classifiersCodes.find(recordInfo.iCC) == classifiersCodes.end())
             {
-                classifiersCodes.insert(iCC);
+                classifiersCodes.insert(recordInfo.iCC);
 
-                osLayerName.Printf("%d", iCC);
+                osLayerName.Printf("%d", recordInfo.iCC);
 
                 std::set<GInt32> layerClassifiers;
-                layerClassifiers.insert(iCC);
+                layerClassifiers.insert(recordInfo.iCC);
 
                 papoLayers = (OGRLayer**) CPLRealloc(papoLayers, sizeof(OGRLayer*) * (nLayers+1));
                 papoLayers[nLayers] = new OGRSXFLayer(fpSXF, osLayerName, poSRS, sxfInfo, layerClassifiers, NULL);
+
+
+
                 nLayers++;
             }
 
-            objectOffset += nRecordLength;
+            objectOffset += recordInfo.nRecordLength;
             VSIFSeekL(fpSXF, objectOffset, SEEK_SET);
         }
     }
@@ -801,7 +870,7 @@ void OGRSXFDataSource::ReadRSCLayers(RecordRSCHEAD &RSCFileHeader)
     vsi_l_offset nOffset = RSCFileHeader.Layers.nOffset;
     _layer LAYER;
 
-    for (int i = 0; i < RSCFileHeader.Layers.nRecordCount; ++i)
+    for (unsigned i = 0; i < RSCFileHeader.Layers.nRecordCount; ++i)
     {
         VSIFReadL(&LAYER, 1, sizeof(_layer), fpRSC);
 
@@ -832,7 +901,7 @@ void OGRSXFDataSource::ReadRSCLayers(RecordRSCHEAD &RSCFileHeader)
     nOffset = RSCFileHeader.Objects.nOffset;
     _object OBJECT;
 
-    for (int i = 0; i < RSCFileHeader.Objects.nRecordCount; ++i)
+    for (unsigned i = 0; i < RSCFileHeader.Objects.nRecordCount; ++i)
     {
         VSIFReadL(&OBJECT, 1, sizeof(_object), fpRSC);
 
