@@ -419,10 +419,10 @@ namespace
             projectionInfo.dfMainPar2 = (long double)_projectionInfoSXFv3.dfMainPar2;
             projectionInfo.dfMainPtPar = (long double)_projectionInfoSXFv3.dfMainPtPar;
 
-            if (projectionInfo.dfAxialMer == 0xffffff) projectionInfo.dfAxialMer *= std::pow(10.0,6);
-            if (projectionInfo.dfMainPar1 == 0xffffff) projectionInfo.dfMainPar1 *= std::pow(10.0,6);
-            if (projectionInfo.dfMainPar2 == 0xffffff) projectionInfo.dfMainPar2 *= std::pow(10.0,6);
-            if (projectionInfo.dfMainPtPar == 0xffffff) projectionInfo.dfMainPtPar *= std::pow(10.0,6);
+            if (projectionInfo.dfAxialMer == 0xffffff) projectionInfo.dfAxialMer *= pow(10.0,6);
+            if (projectionInfo.dfMainPar1 == 0xffffff) projectionInfo.dfMainPar1 *= pow(10.0,6);
+            if (projectionInfo.dfMainPar2 == 0xffffff) projectionInfo.dfMainPar2 *= pow(10.0,6);
+            if (projectionInfo.dfMainPtPar == 0xffffff) projectionInfo.dfMainPtPar *= pow(10.0,6);
 
             projectionInfo.dfFalseEasting = 500000;
             projectionInfo.dfFalseNorthing = 0;
@@ -452,7 +452,7 @@ namespace
 
             if (version == IDSXFVERSION3)
             {
-                projectionInfo.dfFalseEasting += ZoneNumber * std::pow(10.0, 6);
+                projectionInfo.dfFalseEasting += ZoneNumber * pow(10.0, 6);
             }
 
             double padfPrjParams[8] = {projectionInfo.dfMainPar1, projectionInfo.dfMainPar2, projectionInfo.dfMainPtPar,
@@ -476,7 +476,7 @@ namespace
 
             if (version == IDSXFVERSION3)
             {
-                projectionInfo.dfFalseEasting += ZoneNumber * std::pow(10.0, 6);
+                projectionInfo.dfFalseEasting += ZoneNumber * pow(10.0, 6);
             }
 
             double padfPrjParams[8] = {projectionInfo.dfMainPar1, projectionInfo.dfMainPar2, projectionInfo.dfMainPtPar,
@@ -530,6 +530,11 @@ namespace
             else
                 certifInfo.bHasTextSign = false;
         }
+
+        if( (*(buf+22) & 0x01) == 0x01) //xхххxxx1
+            certifInfo.bRecordFormat = 1;
+        else
+            certifInfo.bRecordFormat = 0;
 
         certifInfo.nPointsCount = *(GUInt16*)(buf+30);
 
@@ -734,6 +739,20 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
     }
 
     oSXFPassport.mathBase = readSXFMathBase(fpSXF, oSXFPassport.version);
+
+    if(oSXFPassport.informationFlags.realCoordinatesCompliance == false )
+    {
+        CPLError( CE_Warning, CPLE_NotSupported,
+                  "SXF. Given material may be rotated in the conditional system of coordinates" );
+
+        if(oSXFPassport.mathBase.unitInPlan != CMU_METRE)
+        {
+            CPLError( CE_Fatal, CPLE_None,
+                      "SXF. Incorrect structure. The conditional system of coordinates, certificate mast be in the samples)" );
+            return FALSE;
+        }
+    }
+
     oSXFPassport.nScale = readSXFMapScale(fpSXF, oSXFPassport.version);
     oSXFPassport.deviceInfo = readSXFDeviceInfo(fpSXF, oSXFPassport.version);
     oSXFPassport.sheetRectCoordinates = readSXFSheetCornersCoordinates(fpSXF, oSXFPassport.version);
@@ -746,7 +765,7 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
         pszRSCRileName = CPLGetConfigOption("RSC_FILENAME", "");
         if (CPLCheckForFile((char *)pszRSCRileName.c_str(), NULL) == FALSE)
         {
-            CPLError(CE_Warning, CPLE_None, "RSC file %s not exist", pszRSCRileName);
+            CPLError(CE_Warning, CPLE_None, "RSC file %s not exist", pszRSCRileName.c_str());
             pszRSCRileName.Clear();
         }
     }

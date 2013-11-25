@@ -1,5 +1,5 @@
-# ******************************************************************************
-# * Project:  CMake4GDAL
+# ******************************************************************************
+# * Project:  CMake4GDAL
 # * Purpose:  CMake build scripts
 # * Author: Dmitriy Baryshnikov (aka Bishop), polimax@mail.ru
 # ******************************************************************************
@@ -25,6 +25,7 @@
 # ******************************************************************************
 
 cmake_minimum_required (VERSION 2.8.10)
+
 set(PROJECT_NAME "gdallib")
 project(${PROJECT_NAME})
 
@@ -88,6 +89,10 @@ add_definitions(-DSTRICT)
 if(WIN32)
   add_definitions(-D_WIN32_WINNT=0x0501)
 endif(WIN32)
+
+if(UNIX)
+    add_definitions(-DCPL_LSB)
+endif()
 
 if(MSVC)
     if(CMAKE_CL_64)

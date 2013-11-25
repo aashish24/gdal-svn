@@ -344,7 +344,7 @@ GUInt32 OGRSXFLayer::TranslateXYH ( const SXFRecordCertifInfo& certifInfo, char 
 
 			if (dfH != NULL)
 			{
-				float h = *(float *)(psBuff + 8); 
+                float h = *(float *)(psBuff + 8);  // H always in float
 				*dfH = (double)h; 
 
 				offset += 4;
@@ -366,7 +366,7 @@ GUInt32 OGRSXFLayer::TranslateXYH ( const SXFRecordCertifInfo& certifInfo, char 
 
 			if (dfH != NULL)
 			{
-				double h = *(double *)(psBuff + 8); // H always in float
+                float h = *(float *)(psBuff + 8); // H always in float
 				*dfH = (double)h; 
 
 				offset += 4;
@@ -409,17 +409,6 @@ GUInt32 OGRSXFLayer::TranslateXYH ( const SXFRecordCertifInfo& certifInfo, char 
 
 OGRFeature *OGRSXFLayer::GetNextRawFeature()
 {
-
-
-    /*
-    GByte* buf = (GByte*)CPLMalloc(recordHeaderSize);
-    if ( VSIFReadL( buf, recordHeaderSize, 1, fpSXF ) != 1)
-    {
-        bEOF = TRUE;
-        return NULL;
-    }
-    */
-
     SXFRecordInfo recordInfo;
     if(readSXFRecord(fpSXF, *poSXFPassport.get(), recordInfo) == false)
     {
@@ -427,10 +416,13 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
         return NULL;
     }
 
-
     if (recordInfo.bHazTyingVect == true)
         CPLError( CE_Failure, CPLE_NotSupported,
                   "SXF. Parsing the vector of the tying not support." );
+
+    if (recordInfo.certifInfo.bRecordFormat == 1)
+        CPLError( CE_Fatal, CPLE_NotSupported,
+                  "SXF. Vector format of the certificate do not support." );
 
     std::set<GInt32>::iterator classifierIt = objectsClassificators.find(recordInfo.iCC);
     if(classifierIt == objectsClassificators.end())
@@ -513,7 +505,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
                 case sctOneByte:
                 {
                     double d = *(GByte *)(psSemanticsdBuf+offset);
-                    d *= std::pow(10.0, (double)scale);
+                    d *= pow(10.0, (double)scale);
 
                     oFieldValue.Printf("%f",d);
                     poFeature->SetField(oFieldName, d);
@@ -524,7 +516,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
                 case sctTwoByte:
                 {
                     double d = *(GInt16 *)(psSemanticsdBuf+offset);
-                    d *= std::pow(10.0, (double)scale);
+                    d *= pow(10.0, (double)scale);
 
                     oFieldValue.Printf("%f",d);
                     poFeature->SetField(oFieldName, d);
@@ -535,7 +527,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
                 case sctForeByte:
                 {
                     double d = *(GInt32 *)(psSemanticsdBuf+offset);
-                    d *= std::pow(10.0, (double)scale);
+                    d *= pow(10.0, (double)scale);
 
                     oFieldValue.Printf("%f",d);
                     poFeature->SetField(oFieldName, d);

@@ -250,6 +250,8 @@ typedef enum org_sxf_geometry_type
 
 typedef struct
 {
+    GByte  bRecordFormat; /* Format of the certificate (0- linear size, 1-vector format ) */
+
     bool bHasTextSign;        /* Sign of certificate with the text (Note 11) */
 
     GUInt16 nPointsCount;     /* Number of points of the certificate */

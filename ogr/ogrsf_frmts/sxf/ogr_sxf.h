@@ -34,6 +34,11 @@
 #include <vector>
 #include <map>
 
+#ifdef WIN32
+#else
+    #include <tr1/memory>
+#endif
+
 #include "ogrsf_frmts.h"
 #include "org_sxf_defs.h"
 
