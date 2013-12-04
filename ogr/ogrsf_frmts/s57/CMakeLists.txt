@@ -34,6 +34,8 @@ include_directories(${GDAL_ROOT_SOURCE_DIR}/ogr/ogrsf_frmts)
 include_directories(${GDAL_ROOT_SOURCE_DIR}/ogr/ogrsf_frmts/generic)  
 include_directories(${GDAL_ROOT_SOURCE_DIR}/frmts/iso8211)
 
+add_definitions(-DS57_BUILTIN_CLASSES)
+
 set(LIB_HHEADERS
     ogr_s57.h
     s57.h
@@ -50,12 +52,6 @@ set(LIB_CSOURCES
 	s57featuredefns.cpp
     s57filecollector.cpp 
     s57writer.cpp
-    ${GDAL_ROOT_SOURCE_DIR}/frmts/iso8211/ddfmodule.cpp 
-    ${GDAL_ROOT_SOURCE_DIR}/frmts/iso8211/ddfutils.cpp
-    ${GDAL_ROOT_SOURCE_DIR}/frmts/iso8211/ddffielddefn.cpp
-    ${GDAL_ROOT_SOURCE_DIR}/frmts/iso8211/ddfrecord.cpp
-	${GDAL_ROOT_SOURCE_DIR}/frmts/iso8211/ddffield.cpp
-    ${GDAL_ROOT_SOURCE_DIR}/frmts/iso8211/ddfsubfielddefn.cpp
 )
 
 set(GDAL_TARGET_OBJECTS ${GDAL_TARGET_OBJECTS} $<TARGET_OBJECTS:${LIB_NAME}> PARENT_SCOPE)
