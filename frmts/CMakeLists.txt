@@ -41,6 +41,9 @@ add_definitions(-DFRMT_hfa)
 add_subdirectory(hfa)
 add_definitions(-DFRMT_vrt)
 add_subdirectory(vrt)
+#maybe make depended by s57 ogr driver
+add_definitions(-DFRMT_iso8211)
+add_subdirectory(iso8211)
 
 option(GDAL_ENABLE_FRMT_BMP "Set ON to build bmp driver" OFF)
 if(GDAL_ENABLE_FRMT_BMP)
