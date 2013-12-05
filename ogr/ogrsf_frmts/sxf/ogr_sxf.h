@@ -4,9 +4,12 @@
  * Project:  SXF Translator
  * Purpose:  Include file defining classes for OGR SXF driver, datasource and layers.
  * Author:   Ben Ahmed Daho Ali, bidandou(at)yahoo(dot)fr
+ *           Dmitry Baryshnikov, polimax@mail.ru
+ *           Alexandr Lisovenko
  *
  ******************************************************************************
  * Copyright (c) 2011, Ben Ahmed Daho Ali
+ * Copyright (c) 2013, NextGIS
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -34,20 +37,17 @@
 #include <vector>
 #include <map>
 
-#ifdef WIN32
-#else
-    #include <tr1/memory>
-#endif
+//#ifdef WIN32
+//#else
+//    #include <tr1/memory>
+//#endif
 
 #include "ogrsf_frmts.h"
 #include "org_sxf_defs.h"
 
-/*
- *  Record headr size in sxf v.4 and sxf v.3
- */
-const static size_t recordHeaderSize = 32;
-
-bool readSXFRecord(VSILFILE* fpSXF, const SXFPassport& passport, SXFRecordInfo& recordInfo);
+#define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
+#define TO_DEGREES 57.2957795130823208766
+#define TO_RADIANS 0.017453292519943295769
 
 /************************************************************************/
 /*                         OGRSXFLayer                                */
@@ -56,45 +56,44 @@ class OGRSXFLayer : public OGRLayer
 {
 protected:
     OGRFeatureDefn*    poFeatureDefn;
-    OGRSpatialReference* poSRS;
-
 	VSILFILE*          fpSXF;
-	int                bEOF;
+    GByte              nLayerID;
+    std::map<unsigned, CPLString> mnClassificators;
+    std::map<int, vsi_l_offset> mnRecordDesc;
+    std::map<int, vsi_l_offset>::const_iterator oNextIt;
+    SXFMapDescription  stSXFMapDescription;
+    std::set<GUInt16> snAttributeCodes;
+    int m_nSXFFormatVer;
 
-	int                nNextFID;
-	int                bIncorrectFType;
-	int                bIncorrectFClassificator;
+    virtual OGRFeature *       GetNextRawFeature();
 
-    std::set<GInt32> objectsClassificators;
-    vsi_l_offset firstObjectOffset;
-	vsi_l_offset lastObjectOffset;
-	
-    RSCLayer*  oRSCLayer;
-
-    std::tr1::shared_ptr<SXFPassport> poSXFPassport;
-
-	virtual OGRFeature *       GetNextRawFeature();
-
-    GUInt32 TranslateXYH ( const SXFRecordCertifInfo& certifInfo,     char *psBuff,
+    GUInt32 TranslateXYH(const SXFRecordDescription& certifInfo, char *psBuff,
                           double *dfX, double *dfY, double *dfH = NULL);
 
 
-    OGRFeature *TranslatePoint( const SXFRecordCertifInfo& certifInfo, char * psRecordBuf );
-    OGRFeature *TranslateText ( const SXFRecordCertifInfo& certifInfo, char * psBuff );
-    OGRFeature *TranslatePolygon ( const SXFRecordCertifInfo& certifInfo, char * psBuff );
-    OGRFeature *TranslateLine ( const SXFRecordCertifInfo& certifInfo, char * psBuff );
+    OGRFeature *TranslatePoint(const SXFRecordDescription& certifInfo, char * psRecordBuf);
+    OGRFeature *TranslateText(const SXFRecordDescription& certifInfo, char * psBuff);
+    OGRFeature *TranslatePolygon(const SXFRecordDescription& certifInfo, char * psBuff);
+    OGRFeature *TranslateLine(const SXFRecordDescription& certifInfo, char * psBuff);
 public:
-    OGRSXFLayer(VSILFILE* fp, const char* pszLayerName, OGRSpatialReference *sr, SXFPassport&  sxfPassport, std::set<GInt32> objCls, RSCLayer*  rscLayer);
+    OGRSXFLayer(VSILFILE* fp, GByte nID, const char* pszLayerName, int nVer, const SXFMapDescription&  sxfMapDesc);
     ~OGRSXFLayer();
 
 	virtual void                ResetReading();
-    virtual OGRFeature *        GetNextFeature();
-
-    virtual OGRFeatureDefn *    GetLayerDefn() { return poFeatureDefn;}
+    virtual OGRFeature         *GetNextFeature();
+    virtual OGRErr              SetNextByIndex(long nIndex);
+    virtual OGRFeature         *GetFeature(long nFID);
+    virtual OGRFeatureDefn     *GetLayerDefn() { return poFeatureDefn;}
 
     virtual int                 TestCapability( const char * );
 
-    virtual OGRSpatialReference *GetSpatialRef() { return poSRS; }
+    virtual int         GetFeatureCount(int bForce = TRUE);
+    virtual OGRErr      GetExtent(OGREnvelope *psExtent, int bForce = TRUE);
+    virtual OGRSpatialReference *GetSpatialRef();
+
+    virtual GByte GetId() const { return nLayerID; };
+    virtual void AddClassifyCode(unsigned nClassCode, const char *szName = NULL);
+    virtual int AddRecord(int nFID, unsigned nClassCode, vsi_l_offset nOffset, bool bHasSemantic);
 };
 
 
@@ -104,19 +103,23 @@ public:
 
 class OGRSXFDataSource : public OGRDataSource
 {
+    SXFPassport oSXFPassport;
+
     CPLString               pszName;
 
     OGRLayer**          papoLayers;
     size_t              nLayers;
 
     VSILFILE* fpSXF;
-    VSILFILE* fpRSC;
 
-    RSCLayers   rscLayers;
-
-    void CreateLayers(SXFPassport& sxfPassport, OGRSpatialReference *poSRS);
-    void ReadRSCLayers(RecordRSCHEAD &RSCFileHeader);
-  public:
+    void FillLayers(void);
+    void CreateLayers();
+    void CreateLayers(VSILFILE* fpRSC);
+    OGRErr ReadSXFInformationFlags(VSILFILE* fpSXF, SXFPassport& passport);
+    OGRErr ReadSXFDescription(VSILFILE* fpSXF, SXFPassport& passport);
+    OGRErr ReadSXFMapDescription(VSILFILE* fpSXF, SXFPassport& passport);
+    OGRSXFLayer*       GetLayerById(GByte);
+public:
                         OGRSXFDataSource();
                         ~OGRSXFDataSource();
 

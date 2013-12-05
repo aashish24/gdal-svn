@@ -4,9 +4,11 @@
  * Project:  SXF Translator
  * Purpose:  Definition of classes for OGR SXF driver.
  * Author:   Ben Ahmed Daho Ali, bidandou(at)yahoo(dot)fr
+ *           Dmitry Baryshnikov, polimax@mail.ru
  *
  ******************************************************************************
  * Copyright (c) 2011, Ben Ahmed Daho Ali
+ * Copyright (c) 2013, NextGIS
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
