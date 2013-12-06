@@ -6,7 +6,7 @@
  *           basic constants.
  * Author:   Ben Ahmed Daho Ali, bidandou(at)yahoo(dot)fr
  *           Dmitry Baryshnikov, polimax@mail.ru
- *           Alexandr Lisovenko
+ *           Alexandr Lisovenko, alexander.lisovenko@gmail.com
  *
  ******************************************************************************
  * Copyright (c) 2011, Ben Ahmed Daho Ali

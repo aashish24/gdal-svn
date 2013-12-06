@@ -5,7 +5,7 @@
  * Purpose:  Definition of classes for OGR SXF Datasource.
  * Author:   Ben Ahmed Daho Ali, bidandou(at)yahoo(dot)fr
  *           Dmitry Baryshnikov, polimax@mail.ru
- *           Alexandr Lisovenko
+ *           Alexandr Lisovenko, alexander.lisovenko@gmail.com
  *
  ******************************************************************************
  * Copyright (c) 2011, Ben Ahmed Daho Ali
@@ -503,6 +503,7 @@ OGRErr OGRSXFDataSource::ReadSXFMapDescription(VSILFILE* fpSXF, SXFPassport& pas
     long iEllips = anData[0];
     long iProjSys = anData[2];
     long iDatum = anData[3];
+    double dfProjScale = 1;
 
     double adfPrjParams[8] = { 0 };
 
@@ -546,9 +547,19 @@ OGRErr OGRSXFDataSource::ReadSXFMapDescription(VSILFILE* fpSXF, SXFPassport& pas
         int anParams[5];
         nObjectsRead = VSIFReadL(&anParams, 20, 1, fpSXF);
 
-        passport.stMapDescription.dfScale = double(anParams[1]) / 100000000.0;
-        passport.stMapDescription.dfXOr = double(anParams[2]) / 100000000.0 * TO_DEGREES;
-        passport.stMapDescription.dfYOr = double(anParams[2]) / 100000000.0 * TO_DEGREES;
+        if (anParams[0] != -1)
+            dfProjScale = double(anParams[0]) / 100000000.0;
+
+        if (anParams[2] != -1)
+            passport.stMapDescription.dfXOr = double(anParams[2]) / 100000000.0 * TO_DEGREES;
+        else
+            passport.stMapDescription.dfXOr = 0;
+
+        if (anParams[3] != -1)
+            passport.stMapDescription.dfYOr = double(anParams[2]) / 100000000.0 * TO_DEGREES;
+        else
+            passport.stMapDescription.dfYOr = 0;
+
         passport.stMapDescription.dfFalseNorthing = 0;
         passport.stMapDescription.dfFalseEasting = 0;
 
@@ -557,7 +568,7 @@ OGRErr OGRSXFDataSource::ReadSXFMapDescription(VSILFILE* fpSXF, SXFPassport& pas
         //adfPrjParams[1] = double(anParams[1]) / 100000000.0;
         //adfPrjParams[2] = double(anParams[2]) / 100000000.0;
         //adfPrjParams[3] = double(anParams[3]) / 100000000.0;
-        //adfPrjParams[4] = 1;//?
+        adfPrjParams[4] = dfProjScale;//?
         //adfPrjParams[5] = 0;//?
         //adfPrjParams[6] = 0;//?
         //adfPrjParams[7] = 0;// importFromPanorama calc it by itself
@@ -589,7 +600,8 @@ OGRErr OGRSXFDataSource::ReadSXFMapDescription(VSILFILE* fpSXF, SXFPassport& pas
         double adfParams[6];
         nObjectsRead = VSIFReadL(&adfParams, 48, 1, fpSXF);
 
-        passport.stMapDescription.dfScale = adfParams[1];
+        if (adfParams[1] != -1)
+            dfProjScale = adfParams[1];
         passport.stMapDescription.dfXOr = adfParams[2] * TO_DEGREES;
         passport.stMapDescription.dfYOr = adfParams[3] * TO_DEGREES;
         passport.stMapDescription.dfFalseNorthing = adfParams[4];
@@ -599,16 +611,13 @@ OGRErr OGRSXFDataSource::ReadSXFMapDescription(VSILFILE* fpSXF, SXFPassport& pas
         //adfPrjParams[1] = adfParams[1];
         //adfPrjParams[2] = adfParams[2];
         //adfPrjParams[3] = adfParams[3];
-        //adfPrjParams[4] = 1;//?
+        adfPrjParams[4] = dfProjScale;//?
         //adfPrjParams[5] = adfParams[4];
         //adfPrjParams[6] = adfParams[5];
         //adfPrjParams[7] = 0;// importFromPanorama calc it by itself
     }
 
-    if (passport.stMapDescription.dfScale == 0)
-    {
-        passport.stMapDescription.dfScale = passport.nScale;
-    }
+    passport.stMapDescription.dfScale = passport.nScale;
 
     double dfCoeff = double(passport.stMapDescription.dfScale) / passport.stMapDescription.nResolution;
     passport.stMapDescription.bIsRealCoordinates = passport.informationFlags.bRealCoordinatesCompliance;

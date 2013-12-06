@@ -5,7 +5,7 @@
  * Purpose:  Definition of classes for OGR SXF Layers.
  * Author:   Ben Ahmed Daho Ali, bidandou(at)yahoo(dot)fr
  *           Dmitry Baryshnikov, polimax@mail.ru
- *           Alexandr Lisovenko
+ *           Alexandr Lisovenko, alexander.lisovenko@gmail.com
  *
  ******************************************************************************
  * Copyright (c) 2011, Ben Ahmed Daho Ali
@@ -463,7 +463,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
     SXFGeometryType eGeomType;
     GByte code;
     if (m_nSXFFormatVer == 3)
-        code = stRecordHeader.nRef[0] & 0x0f;
+        code = (stRecordHeader.nRef[0] >> 16) & 0x0000ffff;//get first 2 bits
     else if (m_nSXFFormatVer == 4)
         code = stRecordHeader.nRef[0];
 
@@ -475,6 +475,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
         eGeomType = SXF_GT_Point;
     else if (code == 0x03) // xxxx0011
         eGeomType = SXF_GT_Text;
+    //beginning 4.0
     else if (code == 0x04) // xxxx0100
         eGeomType = SXF_GT_Vector;
     else if (code == 0x05) // xxxx0101
@@ -505,6 +506,11 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
         bFloatType = CHECK_BIT(stRecordHeader.nRef[2], 2);
         bBigType = CHECK_BIT(stRecordHeader.nRef[1], 2);
         stCertInfo.bHasTextSign = CHECK_BIT(stRecordHeader.nRef[2], 5);
+
+        bool bTest1 = CHECK_BIT(stRecordHeader.nRef[2], 3);
+        bool bTest2 = CHECK_BIT(stRecordHeader.nRef[2], 4);
+
+        int x = 0;
     }
     else if (m_nSXFFormatVer == 4)
     {
