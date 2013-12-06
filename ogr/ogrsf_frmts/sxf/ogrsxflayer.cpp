@@ -45,6 +45,7 @@ CPL_CVSID("$Id: ogrsxflayer.cpp $");
 
 OGRSXFLayer::OGRSXFLayer(VSILFILE* fp, GByte nID, const char* pszLayerName, int nVer, const SXFMapDescription&  sxfMapDesc) : OGRLayer()
 {
+    sFIDColumn_ = "ogc_fid";
     fpSXF = fp;
     nLayerID = nID;
     stSXFMapDescription = sxfMapDesc;
@@ -59,6 +60,9 @@ OGRSXFLayer::OGRSXFLayer(VSILFILE* fp, GByte nID, const char* pszLayerName, int 
     //OGRGeomFieldDefn oGeomFieldDefn("Shape", wkbGeometryCollection);
     //oGeomFieldDefn.SetSpatialRef(stSXFMapDescription.pSpatRef);
     //poFeatureDefn->AddGeomFieldDefn(&oGeomFieldDefn);
+
+    OGRFieldDefn oFIDField = OGRFieldDefn(sFIDColumn_, OFTInteger);
+    poFeatureDefn->AddFieldDefn(&oFIDField);
 
     OGRFieldDefn oClCodeField = OGRFieldDefn( "CLCODE", OFTInteger );
     oClCodeField.SetWidth(10);
@@ -588,6 +592,8 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
         return NULL;
     }
 
+    poFeature->SetField(sFIDColumn_, oNextIt->first);
+
     poFeature->SetField("CLCODE", (int)stRecordHeader.nClassifyCode);
 
     CPLString szName = mnClassificators[stRecordHeader.nClassifyCode];
@@ -980,5 +986,8 @@ OGRFeature *OGRSXFLayer::TranslateText(const SXFRecordDescription& certifInfo, c
     return poFeature;
 }
 
-
+const char* OGRSXFLayer::GetFIDColumn()
+{
+    return sFIDColumn_.c_str();
+}
 

@@ -64,6 +64,7 @@ protected:
     SXFMapDescription  stSXFMapDescription;
     std::set<GUInt16> snAttributeCodes;
     int m_nSXFFormatVer;
+    CPLString sFIDColumn_;
 
     virtual OGRFeature *       GetNextRawFeature();
 
@@ -90,6 +91,7 @@ public:
     virtual int         GetFeatureCount(int bForce = TRUE);
     virtual OGRErr      GetExtent(OGREnvelope *psExtent, int bForce = TRUE);
     virtual OGRSpatialReference *GetSpatialRef();
+    virtual const char* GetFIDColumn();
 
     virtual GByte GetId() const { return nLayerID; };
     virtual void AddClassifyCode(unsigned nClassCode, const char *szName = NULL);
