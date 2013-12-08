@@ -70,6 +70,8 @@ OGRSXFDataSource::~OGRSXFDataSource()
     {
         oSXFPassport.stMapDescription.pSpatRef->Release();
     }
+
+    CloseFile();
 }
 
 /************************************************************************/
@@ -80,6 +82,7 @@ void  OGRSXFDataSource::CloseFile()
     if (NULL != fpSXF)
     {
         VSIFCloseL( fpSXF );
+        fpSXF = NULL;
     }
 }
 
@@ -411,6 +414,8 @@ OGRErr OGRSXFDataSource::ReadSXFMapDescription(VSILFILE* fpSXF, SXFPassport& pas
     passport.stMapDescription.Env.MaxY = -100000000;
     passport.stMapDescription.Env.MinY = 100000000;
 
+    bool bIsX = true;// passport.informationFlags.bRealCoordinatesCompliance; //if real coordinates we need to swap x & y
+
     //version specific
     if (passport.version == 3)
     {
@@ -428,7 +433,7 @@ OGRErr OGRSXFDataSource::ReadSXFMapDescription(VSILFILE* fpSXF, SXFPassport& pas
         for (i = 0; i < 8; i++)
         {
             passport.stMapDescription.stProjCoords[i] = double(nCorners[i]) / 10.0;
-            if (i % 2 == 0) //X
+            if (bIsX) //X
             {
                 if (passport.stMapDescription.Env.MaxY < passport.stMapDescription.stProjCoords[i])
                     passport.stMapDescription.Env.MaxY = passport.stMapDescription.stProjCoords[i];
@@ -442,6 +447,7 @@ OGRErr OGRSXFDataSource::ReadSXFMapDescription(VSILFILE* fpSXF, SXFPassport& pas
                 if (passport.stMapDescription.Env.MinX > passport.stMapDescription.stProjCoords[i])
                     passport.stMapDescription.Env.MinX = passport.stMapDescription.stProjCoords[i];
             }
+            bIsX = !bIsX;
         }
         //get geographic corner coords
         nObjectsRead = VSIFReadL(&nCorners, 32, 1, fpSXF);
@@ -468,7 +474,7 @@ OGRErr OGRSXFDataSource::ReadSXFMapDescription(VSILFILE* fpSXF, SXFPassport& pas
         for (i = 0; i < 8; i++)
         {
             passport.stMapDescription.stProjCoords[i] = dfCorners[i];
-            if (i % 2 == 0) //X
+            if (bIsX) //X
             {
                 if (passport.stMapDescription.Env.MaxY < passport.stMapDescription.stProjCoords[i])
                     passport.stMapDescription.Env.MaxY = passport.stMapDescription.stProjCoords[i];
@@ -482,6 +488,8 @@ OGRErr OGRSXFDataSource::ReadSXFMapDescription(VSILFILE* fpSXF, SXFPassport& pas
                 if (passport.stMapDescription.Env.MinX > passport.stMapDescription.stProjCoords[i])
                     passport.stMapDescription.Env.MinX = passport.stMapDescription.stProjCoords[i];
             }
+            bIsX = !bIsX;
+
         }
         //get geographic corner coords
         nObjectsRead = VSIFReadL(&dfCorners, 64, 1, fpSXF);
@@ -676,6 +684,19 @@ OGRErr OGRSXFDataSource::ReadSXFMapDescription(VSILFILE* fpSXF, SXFPassport& pas
         OGRErr eErr = passport.stMapDescription.pSpatRef->importFromEPSG(nEPSG);
         return eErr;
     }
+    else if (iEllips == 45 && iProjSys == 35) //Mercator 3395
+    {
+        passport.stMapDescription.pSpatRef = new OGRSpatialReference();
+        OGRErr eErr = passport.stMapDescription.pSpatRef->importFromEPSG(3395);
+        return eErr;
+    }
+    else if (iEllips == 9 && iProjSys == 34) //Miller 54003
+    {
+        passport.stMapDescription.pSpatRef = new OGRSpatialReference();
+        OGRErr eErr = passport.stMapDescription.pSpatRef->importFromEPSG(54003);
+        return eErr;
+    }
+
     //TODO: Need to normalise more SRS:
     //PAN_PROJ_WAG1
     //PAN_PROJ_MERCAT

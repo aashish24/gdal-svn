@@ -67,6 +67,8 @@ CPL_CVSID("$Id$");
 #define PAN_PROJ_EQC    27L     // Equirectangular
 #define PAN_PROJ_CEA    28L     // Cylindrical Equal Area (Lambert)
 #define PAN_PROJ_IMWP   29L     // International Map of the World Polyconic
+#define PAN_PROJ_MILLER 34L     // Miller
+
 
 /************************************************************************/
 /*  "Panorama" datum codes.                                             */
@@ -401,6 +403,12 @@ OGRErr OGRSpatialReference::importFromPanorama( long iProjSys, long iDatum,
                              TO_DEGREES * padfPrjParams[1],
                              TO_DEGREES * padfPrjParams[3],
                              padfPrjParams[5], padfPrjParams[6] );
+            break;
+
+        case PAN_PROJ_MILLER:
+            SetMC(TO_DEGREES * padfPrjParams[5],
+                TO_DEGREES * padfPrjParams[4],
+                padfPrjParams[6], padfPrjParams[7]);
             break;
 
         default:

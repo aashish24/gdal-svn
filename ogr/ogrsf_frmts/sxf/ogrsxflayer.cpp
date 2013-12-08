@@ -139,7 +139,7 @@ int OGRSXFLayer::AddRecord(int nFID, unsigned nClassCode, vsi_l_offset nOffset, 
 
                 SXFRecordAttributeType eType = (SXFRecordAttributeType)stAttrInfo.nType;
 
-                switch (eType)
+                switch (eType) //TODO: set field type form RSC as here sometimes we have the codes and string values can be get from RSC by this code
                 {
                 case SXF_RAT_ONEBYTE:
                 case SXF_RAT_TWOBYTE:
@@ -346,8 +346,8 @@ GUInt32 OGRSXFLayer::TranslateXYH(const SXFRecordDescription& certifInfo, char *
 
         if (stSXFMapDescription.bIsRealCoordinates)
         {
-            *dfX = (double)x;
-            *dfY = (double)y;
+            *dfX = (double)y;
+            *dfY = (double)x;
         }
         else
         {
@@ -373,8 +373,8 @@ GUInt32 OGRSXFLayer::TranslateXYH(const SXFRecordDescription& certifInfo, char *
 
         if (stSXFMapDescription.bIsRealCoordinates)
         {
-            *dfX = (double)x;
-            *dfY = (double)y;
+            *dfX = (double)y;
+            *dfY = (double)x;
         }
         else
         {
@@ -400,8 +400,8 @@ GUInt32 OGRSXFLayer::TranslateXYH(const SXFRecordDescription& certifInfo, char *
 
         if (stSXFMapDescription.bIsRealCoordinates)
         {
-            *dfX = (double)x;
-            *dfY = (double)y;
+            *dfX = (double)y;
+            *dfY = (double)x;
         }
         else
         {
@@ -424,8 +424,8 @@ GUInt32 OGRSXFLayer::TranslateXYH(const SXFRecordDescription& certifInfo, char *
     {
         if (stSXFMapDescription.bIsRealCoordinates)
         {
-            *dfX = *(double *)(psBuff);
-            *dfY = *(double *)(psBuff + 8);
+            *dfY = *(double *)(psBuff);
+            *dfX = *(double *)(psBuff + 8);
         }
         else
         {
