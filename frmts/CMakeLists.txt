@@ -118,6 +118,12 @@ if(GDAL_ENABLE_FRMT_OZIMAP)
 	add_subdirectory(map)
 endif(GDAL_ENABLE_FRMT_OZIMAP)
 
+option(GDAL_ENABLE_FRMT_POSTGISRASTER "Set ON to build postgis raster driver" OFF)
+if(GDAL_ENABLE_FRMT_POSTGISRASTER)
+	add_definitions(-DFRMT_postgisraster)
+	add_subdirectory(postgisraster)
+endif(GDAL_ENABLE_FRMT_POSTGISRASTER)
+
 include(CMakeDependentOption)
 
 CMAKE_DEPENDENT_OPTION(GDAL_ENABLE_FRMT_WMS "Set ON to build wms driver" OFF "GDAL_USE_CURL" OFF)
