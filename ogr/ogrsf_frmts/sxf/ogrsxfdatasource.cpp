@@ -213,10 +213,10 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
 
 /*---------------- TRY READ THE RSC FILE HEADER  -----------------------*/
 
-    CPLString pszRSCRileName = CPLResetExtension(pszFilename, "rsc");
+    CPLString pszRSCRileName = CPLGetConfigOption("SXF_RSC_FILENAME", "");
     if (CPLCheckForFile((char *)pszRSCRileName.c_str(), NULL) == FALSE)
     {
-        pszRSCRileName = CPLGetConfigOption("SXF_RSC_FILENAME", "");
+        pszRSCRileName = CPLResetExtension(pszFilename, "rsc");
         if (CPLCheckForFile((char *)pszRSCRileName.c_str(), NULL) == FALSE)
         {
             CPLError(CE_Warning, CPLE_None, "RSC file %s not exist", pszRSCRileName.c_str());
