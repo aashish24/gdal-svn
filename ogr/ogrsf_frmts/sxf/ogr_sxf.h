@@ -65,6 +65,7 @@ protected:
     std::set<GUInt16> snAttributeCodes;
     int m_nSXFFormatVer;
     CPLString sFIDColumn_;
+    void            **m_hIOMutex;
 
     virtual OGRFeature *       GetNextRawFeature();
 
@@ -77,7 +78,7 @@ protected:
     OGRFeature *TranslatePolygon(const SXFRecordDescription& certifInfo, char * psBuff);
     OGRFeature *TranslateLine(const SXFRecordDescription& certifInfo, char * psBuff);
 public:
-    OGRSXFLayer(VSILFILE* fp, GByte nID, const char* pszLayerName, int nVer, const SXFMapDescription&  sxfMapDesc);
+    OGRSXFLayer(VSILFILE* fp, void** hIOMutex, GByte nID, const char* pszLayerName, int nVer, const SXFMapDescription&  sxfMapDesc);
     ~OGRSXFLayer();
 
 	virtual void                ResetReading();
@@ -95,7 +96,7 @@ public:
 
     virtual GByte GetId() const { return nLayerID; };
     virtual void AddClassifyCode(unsigned nClassCode, const char *szName = NULL);
-    virtual int AddRecord(int nFID, unsigned nClassCode, vsi_l_offset nOffset, bool bHasSemantic);
+    virtual int AddRecord(int nFID, unsigned nClassCode, vsi_l_offset nOffset, bool bHasSemantic, int nSemanticsSize);
 };
 
 
@@ -112,7 +113,7 @@ class OGRSXFDataSource : public OGRDataSource
     OGRLayer**          papoLayers;
     size_t              nLayers;
 
-    VSILFILE* fpSXF;
+    VSILFILE* fpSXF;    
 
     void FillLayers(void);
     void CreateLayers();

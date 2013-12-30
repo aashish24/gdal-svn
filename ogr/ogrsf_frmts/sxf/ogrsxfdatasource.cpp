@@ -33,6 +33,7 @@
 #include "ogr_sxf.h"
 #include "cpl_conv.h"
 #include "cpl_string.h"
+#include "cpl_multiproc.h"
 
 #include <math.h>
 #include <map>
@@ -40,6 +41,7 @@
 
 CPL_CVSID("$Id: ogrsxfdatasource.cpp  $");
 
+static void  *hIOMutex = NULL;
 /************************************************************************/
 /*                         OGRSXFDataSource()                           */
 /************************************************************************/
@@ -72,6 +74,12 @@ OGRSXFDataSource::~OGRSXFDataSource()
     }
 
     CloseFile();
+
+    if (hIOMutex != NULL)
+    {
+        CPLDestroyMutex(hIOMutex);
+        hIOMutex = NULL;
+    }
 }
 
 /************************************************************************/
@@ -772,10 +780,11 @@ void OGRSXFDataSource::FillLayers()
             VSIFSeekL(fpSXF, nOffsetSemantic, SEEK_CUR);
         }
 
+        int nSemanticSize = buff[1] - 32 - buff[2];
         for (i = 0; i < nLayers; i++)
         {
             OGRSXFLayer* pOGRSXFLayer = (OGRSXFLayer*)papoLayers[i];
-            if (pOGRSXFLayer && pOGRSXFLayer->AddRecord(nFID, buff[3], nOffset, bHasSemantic) == TRUE)
+            if (pOGRSXFLayer && pOGRSXFLayer->AddRecord(nFID, buff[3], nOffset, bHasSemantic, nSemanticSize) == TRUE)
             {
                 break;
             }
@@ -823,7 +832,7 @@ void OGRSXFDataSource::CreateLayers()
 
     //default layers set
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    OGRSXFLayer* pLayer = new OGRSXFLayer(fpSXF, 0, CPLString("SYSTEM"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    OGRSXFLayer* pLayer = new OGRSXFLayer(fpSXF, &hIOMutex, 0, CPLString("SYSTEM"), oSXFPassport.version, oSXFPassport.stMapDescription);
     papoLayers[nLayers] = pLayer;
     nLayers++;
 
@@ -835,14 +844,14 @@ void OGRSXFDataSource::CreateLayers()
     pLayer->AddClassifyCode(91000000);
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    pLayer = new OGRSXFLayer(fpSXF, 1, CPLString("boundary"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    pLayer = new OGRSXFLayer(fpSXF, &hIOMutex, 1, CPLString("boundary"), oSXFPassport.version, oSXFPassport.stMapDescription);
     papoLayers[nLayers] = pLayer;
     nLayers++;
 
     pLayer->AddClassifyCode(81110000);
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    pLayer = new OGRSXFLayer(fpSXF, 2, CPLString("water"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    pLayer = new OGRSXFLayer(fpSXF, &hIOMutex, 2, CPLString("water"), oSXFPassport.version, oSXFPassport.stMapDescription);
     papoLayers[nLayers] = pLayer;
     nLayers++;
 
@@ -852,7 +861,7 @@ void OGRSXFDataSource::CreateLayers()
     pLayer->AddClassifyCode(72310000);
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    pLayer = new OGRSXFLayer(fpSXF, 3, CPLString("city"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    pLayer = new OGRSXFLayer(fpSXF, &hIOMutex, 3, CPLString("city"), oSXFPassport.version, oSXFPassport.stMapDescription);
     papoLayers[nLayers] = pLayer;
     nLayers++;
 
@@ -861,7 +870,7 @@ void OGRSXFDataSource::CreateLayers()
     pLayer->AddClassifyCode(91100002);
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    pLayer = new OGRSXFLayer(fpSXF, 4, CPLString("poi"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    pLayer = new OGRSXFLayer(fpSXF, &hIOMutex, 4, CPLString("poi"), oSXFPassport.version, oSXFPassport.stMapDescription);
     papoLayers[nLayers] = pLayer;
     nLayers++;
 
@@ -981,7 +990,7 @@ void OGRSXFDataSource::CreateLayers()
 
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    pLayer = new OGRSXFLayer(fpSXF, 5, CPLString("highway"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    pLayer = new OGRSXFLayer(fpSXF, &hIOMutex, 5, CPLString("highway"), oSXFPassport.version, oSXFPassport.stMapDescription);
     papoLayers[nLayers] = pLayer;
     nLayers++;
 
@@ -1001,7 +1010,7 @@ void OGRSXFDataSource::CreateLayers()
     pLayer->AddClassifyCode(62331000);
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    pLayer = new OGRSXFLayer(fpSXF, 6, CPLString("railway"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    pLayer = new OGRSXFLayer(fpSXF, &hIOMutex, 6, CPLString("railway"), oSXFPassport.version, oSXFPassport.stMapDescription);
     papoLayers[nLayers] = pLayer;
     nLayers++;
 
@@ -1013,21 +1022,21 @@ void OGRSXFDataSource::CreateLayers()
 
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    pLayer = new OGRSXFLayer(fpSXF, 7, CPLString("building"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    pLayer = new OGRSXFLayer(fpSXF, &hIOMutex, 7, CPLString("building"), oSXFPassport.version, oSXFPassport.stMapDescription);
     papoLayers[nLayers] = pLayer;
     nLayers++;
 
     pLayer->AddClassifyCode(44100000);
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    pLayer = new OGRSXFLayer(fpSXF, 8, CPLString("landuse"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    pLayer = new OGRSXFLayer(fpSXF, &hIOMutex, 8, CPLString("landuse"), oSXFPassport.version, oSXFPassport.stMapDescription);
     papoLayers[nLayers] = pLayer;
     nLayers++;
 
     pLayer->AddClassifyCode(97);
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    pLayer = new OGRSXFLayer(fpSXF, 9, CPLString("vegetation"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    pLayer = new OGRSXFLayer(fpSXF, &hIOMutex, 9, CPLString("vegetation"), oSXFPassport.version, oSXFPassport.stMapDescription);
     papoLayers[nLayers] = pLayer;
     nLayers++;
 
@@ -1043,28 +1052,28 @@ void OGRSXFDataSource::CreateLayers()
 
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    pLayer = new OGRSXFLayer(fpSXF, 10, CPLString("fire"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    pLayer = new OGRSXFLayer(fpSXF, &hIOMutex, 10, CPLString("fire"), oSXFPassport.version, oSXFPassport.stMapDescription);
     papoLayers[nLayers] = pLayer;
     nLayers++;
 
     pLayer->AddClassifyCode(96);
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    pLayer = new OGRSXFLayer(fpSXF, 11, CPLString("roaddesign"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    pLayer = new OGRSXFLayer(fpSXF, &hIOMutex, 11, CPLString("roaddesign"), oSXFPassport.version, oSXFPassport.stMapDescription);
     papoLayers[nLayers] = pLayer;
     nLayers++;
 
     pLayer->AddClassifyCode(60000000);
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    pLayer = new OGRSXFLayer(fpSXF, 13, CPLString("RoadStructure"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    pLayer = new OGRSXFLayer(fpSXF, &hIOMutex, 13, CPLString("RoadStructure"), oSXFPassport.version, oSXFPassport.stMapDescription);
     papoLayers[nLayers] = pLayer;
     nLayers++;
 
     pLayer->AddClassifyCode(62315000);
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    pLayer = new OGRSXFLayer(fpSXF, 14, CPLString("signature"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    pLayer = new OGRSXFLayer(fpSXF, &hIOMutex, 14, CPLString("signature"), oSXFPassport.version, oSXFPassport.stMapDescription);
     papoLayers[nLayers] = pLayer;
     nLayers++;
 
@@ -1072,7 +1081,7 @@ void OGRSXFDataSource::CreateLayers()
     pLayer->AddClassifyCode(91200000);
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    papoLayers[nLayers] = new OGRSXFLayer(fpSXF, 255, CPLString("Not_Classified"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    papoLayers[nLayers] = new OGRSXFLayer(fpSXF, &hIOMutex, 255, CPLString("Not_Classified"), oSXFPassport.version, oSXFPassport.stMapDescription);
     nLayers++;
 
 }
@@ -1116,9 +1125,9 @@ void OGRSXFDataSource::CreateLayers(VSILFILE* fpRSC)
         bool bLayerFullName = CSLTestBoolean(CPLGetConfigOption("SXF_LAYER_FULLNAME", "NO"));
 
         if (bLayerFullName)
-            papoLayers[nLayers] = new OGRSXFLayer(fpSXF, LAYER.nNo, CPLString(CPLRecode(LAYER.szName, "CP1251", CPL_ENC_UTF8)), oSXFPassport.version, oSXFPassport.stMapDescription);
+            papoLayers[nLayers] = new OGRSXFLayer(fpSXF, &hIOMutex, LAYER.nNo, CPLString(CPLRecode(LAYER.szName, "CP1251", CPL_ENC_UTF8)), oSXFPassport.version, oSXFPassport.stMapDescription);
         else
-            papoLayers[nLayers] = new OGRSXFLayer(fpSXF, LAYER.nNo, CPLString(CPLRecode(LAYER.szShortName, "CP1251", CPL_ENC_UTF8)), oSXFPassport.version, oSXFPassport.stMapDescription);
+            papoLayers[nLayers] = new OGRSXFLayer(fpSXF, &hIOMutex, LAYER.nNo, CPLString(CPLRecode(LAYER.szShortName, "CP1251", CPL_ENC_UTF8)), oSXFPassport.version, oSXFPassport.stMapDescription);
         nLayers++;
 
         nOffset += LAYER.nLength;
@@ -1126,7 +1135,7 @@ void OGRSXFDataSource::CreateLayers(VSILFILE* fpRSC)
     }
 
     papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
-    papoLayers[nLayers] = new OGRSXFLayer(fpSXF, 255, CPLString("Not_Classified"), oSXFPassport.version, oSXFPassport.stMapDescription);
+    papoLayers[nLayers] = new OGRSXFLayer(fpSXF, &hIOMutex, 255, CPLString("Not_Classified"), oSXFPassport.version, oSXFPassport.stMapDescription);
     nLayers++;
 
 
@@ -1156,6 +1165,7 @@ void OGRSXFDataSource::CreateLayers(VSILFILE* fpRSC)
         if (NULL != pLayer)
         {
             pLayer->AddClassifyCode(OBJECT.nClassifyCode, OBJECT.szName);
+            //printf("%d;%s\n", OBJECT.nClassifyCode, OBJECT.szName);
         }
 
         nOffset += OBJECT.nLength;
