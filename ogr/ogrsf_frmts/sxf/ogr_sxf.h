@@ -37,11 +37,6 @@
 #include <vector>
 #include <map>
 
-//#ifdef WIN32
-//#else
-//    #include <tr1/memory>
-//#endif
-
 #include "ogrsf_frmts.h"
 #include "org_sxf_defs.h"
 
@@ -59,15 +54,15 @@ protected:
 	VSILFILE*          fpSXF;
     GByte              nLayerID;
     std::map<unsigned, CPLString> mnClassificators;
-    std::map<int, vsi_l_offset> mnRecordDesc;
-    std::map<int, vsi_l_offset>::const_iterator oNextIt;
+    std::map<long, vsi_l_offset> mnRecordDesc;
+    std::map<long, vsi_l_offset>::const_iterator oNextIt;
     SXFMapDescription  stSXFMapDescription;
     std::set<GUInt16> snAttributeCodes;
     int m_nSXFFormatVer;
     CPLString sFIDColumn_;
     void            **m_hIOMutex;
 
-    virtual OGRFeature *       GetNextRawFeature();
+    virtual OGRFeature *       GetNextRawFeature(long nFID);
 
     GUInt32 TranslateXYH(const SXFRecordDescription& certifInfo, char *psBuff,
                           double *dfX, double *dfY, double *dfH = NULL);
@@ -96,7 +91,7 @@ public:
 
     virtual GByte GetId() const { return nLayerID; };
     virtual void AddClassifyCode(unsigned nClassCode, const char *szName = NULL);
-    virtual int AddRecord(int nFID, unsigned nClassCode, vsi_l_offset nOffset, bool bHasSemantic, int nSemanticsSize);
+    virtual int AddRecord(long nFID, unsigned nClassCode, vsi_l_offset nOffset, bool bHasSemantic, int nSemanticsSize);
 };
 
 

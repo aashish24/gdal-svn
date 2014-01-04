@@ -120,7 +120,7 @@ void OGRSXFLayer::AddClassifyCode(unsigned nClassCode, const char *szName)
 /*                         AddRecord()                               */
 /************************************************************************/
 
-int OGRSXFLayer::AddRecord(int nFID, unsigned nClassCode, vsi_l_offset nOffset, bool bHasSemantic, int nSemanticsSize)
+int OGRSXFLayer::AddRecord(long nFID, unsigned nClassCode, vsi_l_offset nOffset, bool bHasSemantic, int nSemanticsSize)
 {
     if (mnClassificators.empty() || mnClassificators.find(nClassCode) != mnClassificators.end())
     {
@@ -217,7 +217,7 @@ int OGRSXFLayer::AddRecord(int nFID, unsigned nClassCode, vsi_l_offset nOffset, 
                             oField.SetWidth(255);
                             poFeatureDefn->AddFieldDefn(&oField);
                         }
-                        unsigned nLen = unsigned char(stAttrInfo.nScale) + 1;
+                        unsigned nLen = unsigned(stAttrInfo.nScale) + 1;
                         offset += nLen;
                         nCurrOff = nLen;
                         break;
@@ -230,7 +230,7 @@ int OGRSXFLayer::AddRecord(int nFID, unsigned nClassCode, vsi_l_offset nOffset, 
                             oField.SetWidth(255);
                             poFeatureDefn->AddFieldDefn(&oField);
                         }
-                        unsigned nLen = unsigned char(stAttrInfo.nScale) + 1;
+                        unsigned nLen = unsigned(stAttrInfo.nScale) + 1;
                         offset += nLen;
                         nCurrOff = nLen;
                         break;
@@ -285,11 +285,16 @@ OGRErr OGRSXFLayer::SetNextByIndex(long nIndex)
 
 OGRFeature *OGRSXFLayer::GetFeature(long nFID)
 {
-    std::map<int, vsi_l_offset>::const_iterator IT = mnRecordDesc.find(nFID);
+    std::map<long, vsi_l_offset>::const_iterator IT = mnRecordDesc.find(nFID);
     if (IT != mnRecordDesc.end())
     {
-        oNextIt = IT;
-        return GetNextFeature();
+        VSIFSeekL(fpSXF, IT->second, SEEK_SET);
+        OGRFeature *poFeature = GetNextRawFeature(IT->first);
+        if (poFeature != NULL && poFeature->GetGeometryRef() != NULL && GetSpatialRef() != NULL)
+        {
+            poFeature->GetGeometryRef()->assignSpatialReference(GetSpatialRef());
+        }
+        return poFeature;
     }
 
     return NULL;
@@ -358,7 +363,7 @@ OGRFeature *OGRSXFLayer::GetNextFeature()
     while (oNextIt != mnRecordDesc.end())
     {
         VSIFSeekL(fpSXF, oNextIt->second, SEEK_SET);
-        OGRFeature  *poFeature = GetNextRawFeature();
+        OGRFeature  *poFeature = GetNextRawFeature(oNextIt->first);	
 
         ++oNextIt;
 
@@ -374,7 +379,7 @@ OGRFeature *OGRSXFLayer::GetNextFeature()
             {
                 poFeature->GetGeometryRef()->assignSpatialReference(GetSpatialRef());
             }
-
+	    
             return poFeature;
         }
 
@@ -561,7 +566,7 @@ GUInt32 OGRSXFLayer::TranslateXYH(const SXFRecordDescription& certifInfo, char *
 /*                         GetNextRawFeature()                          */
 /************************************************************************/
 
-OGRFeature *OGRSXFLayer::GetNextRawFeature()
+OGRFeature *OGRSXFLayer::GetNextRawFeature(long nFID)
 {
     SXFRecordHeader stRecordHeader;
     int nObjectRead;
@@ -736,7 +741,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
         return NULL;
     }
 
-    poFeature->SetField(sFIDColumn_, oNextIt->first);
+    poFeature->SetField(sFIDColumn_, (int)nFID);
 
     poFeature->SetField("CLCODE", (int)stRecordHeader.nClassifyCode);
 
@@ -829,7 +834,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
                 }
                 case SXF_RAT_ANSI_WIN:
                 {
-                    unsigned nLen = unsigned char(stAttInfo.nScale) + 1;
+                    unsigned nLen = unsigned(stAttInfo.nScale) + 1;
                     char * value = (char*)CPLMalloc(nLen);
                     memcpy(value, psSemanticsdBuf + offset, nLen);
                     poFeature->SetField(oFieldName, CPLRecode(value, "CP1251", CPL_ENC_UTF8));
@@ -839,7 +844,7 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
                 }
                 case SXF_RAT_UNICODE:
                 {
-                    unsigned nLen = unsigned char(stAttInfo.nScale) + 1;
+                    unsigned nLen = unsigned(stAttInfo.nScale) + 1;
                     char * value = (char*)CPLMalloc(nLen);
                     memcpy(value, psSemanticsdBuf + offset, nLen);
                     poFeature->SetField(oFieldName, value);
@@ -868,9 +873,9 @@ OGRFeature *OGRSXFLayer::GetNextRawFeature()
             }
             CPLFree(psSemanticsdBufOrig);
         }
-    }
-
-    poFeature->SetFID(oNextIt->first);
+    }    
+   
+    poFeature->SetFID(nFID);
 
     CPLFree(recordCertifBuf);
 

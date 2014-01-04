@@ -641,9 +641,16 @@ OGRErr OGRSXFDataSource::ReadSXFMapDescription(VSILFILE* fpSXF, SXFPassport& pas
 
     if (!passport.stMapDescription.bIsRealCoordinates)
     {
-        //origin
-        passport.stMapDescription.dfXOr = passport.stMapDescription.stProjCoords[1] - passport.stMapDescription.stFrameCoords[1] * dfCoeff;
-        passport.stMapDescription.dfYOr = passport.stMapDescription.stProjCoords[0] - passport.stMapDescription.stFrameCoords[0] * dfCoeff;
+        if (passport.stMapDescription.stFrameCoords[0] == 0 && passport.stMapDescription.stFrameCoords[1] == 0 && passport.stMapDescription.stFrameCoords[2] == 0 && passport.stMapDescription.stFrameCoords[3] == 0 && passport.stMapDescription.stFrameCoords[4] == 0 && passport.stMapDescription.stFrameCoords[5] == 0 && passport.stMapDescription.stFrameCoords[6] == 0 && passport.stMapDescription.stFrameCoords[7] == 0)
+        {
+            passport.stMapDescription.bIsRealCoordinates = true;
+        }
+        else
+        {
+            //origin
+            passport.stMapDescription.dfXOr = passport.stMapDescription.stProjCoords[1] - passport.stMapDescription.stFrameCoords[1] * dfCoeff;
+            passport.stMapDescription.dfYOr = passport.stMapDescription.stProjCoords[0] - passport.stMapDescription.stFrameCoords[0] * dfCoeff;
+        }
     }
 
     //normalize some coordintatessystems
@@ -732,7 +739,7 @@ void OGRSXFDataSource::FillLayers()
     CPLDebug("SXF","Create layers");
 
     //2. Read all records (only classify code and offset) and add this to correspondence layer
-    int nFID;
+    long nFID;
     int nObjectsRead;
     size_t i;
     vsi_l_offset nOffset, nOffsetSemantic;
@@ -772,24 +779,27 @@ void OGRSXFDataSource::FillLayers()
             return;
         }
 
-        bool bHasSemantic = CHECK_BIT(buff[5], 9);
-        if (bHasSemantic) //check has attributes
-        {
-            //we have already 24 byte readed
-            nOffsetSemantic = 8 + buff[2];
-            VSIFSeekL(fpSXF, nOffsetSemantic, SEEK_CUR);
-        }
+	bool bIsSupported = oSXFPassport.version == 3 || !CHECK_BIT(buff[5], 2); 
+	if(bIsSupported)
+	{
+		bool bHasSemantic = CHECK_BIT(buff[5], 9);
+		if (bHasSemantic) //check has attributes
+		{
+		    //we have already 24 byte readed
+		    nOffsetSemantic = 8 + buff[2];
+		    VSIFSeekL(fpSXF, nOffsetSemantic, SEEK_CUR);
+		}
 
-        int nSemanticSize = buff[1] - 32 - buff[2];
-        for (i = 0; i < nLayers; i++)
-        {
-            OGRSXFLayer* pOGRSXFLayer = (OGRSXFLayer*)papoLayers[i];
-            if (pOGRSXFLayer && pOGRSXFLayer->AddRecord(nFID, buff[3], nOffset, bHasSemantic, nSemanticSize) == TRUE)
-            {
-                break;
-            }
-        }
-
+		int nSemanticSize = buff[1] - 32 - buff[2];
+		for (i = 0; i < nLayers; i++)
+		{
+		    OGRSXFLayer* pOGRSXFLayer = (OGRSXFLayer*)papoLayers[i];
+		    if (pOGRSXFLayer && pOGRSXFLayer->AddRecord(nFID, buff[3], nOffset, bHasSemantic, nSemanticSize) == TRUE)
+		    {
+		        break;
+		    }
+		}
+	}
         nOffset += buff[1];
         VSIFSeekL(fpSXF, nOffset, SEEK_SET);
     }
