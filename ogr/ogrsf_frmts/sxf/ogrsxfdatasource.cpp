@@ -30,8 +30,8 @@
  * DEALINGS IN THE SOFTWARE.
  ****************************************************************************/
 
-#include "ogr_sxf.h"
 #include "cpl_conv.h"
+#include "ogr_sxf.h"
 #include "cpl_string.h"
 #include "cpl_multiproc.h"
 
@@ -133,17 +133,6 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
 
     pszName = pszFilename;
 
-/* -------------------------------------------------------------------- */
-/*      Determine what sort of object this is.                          */
-/* -------------------------------------------------------------------- */
-
-    VSIStatBufL sStatBuf;
-    if (VSIStatL(pszName, &sStatBuf) != 0 ||
-        !VSI_ISREG(sStatBuf.st_mode) ||
-        !EQUAL(CPLGetExtension(pszName), "sxf"))
-        return FALSE;
-
-
     fpSXF = VSIFOpenL(pszName, "rb");
     if ( fpSXF == NULL )
     {
@@ -160,6 +149,7 @@ int OGRSXFDataSource::Open( const char * pszFilename, int bUpdateIn)
     {
         CPLError(CE_Failure, CPLE_None, "SXF head read failed");
         CloseFile();
+		return FALSE;
     }
 
     //check version
@@ -289,14 +279,18 @@ OGRErr OGRSXFDataSource::ReadSXFDescription(VSILFILE* fpSXF, SXFPassport& passpo
 
         char szName[26] = { 0 };
         memcpy(szName, buff + 8, 24);
-        passport.sMapSheet = CPLRecode(szName + 2, "CP1251", CPL_ENC_UTF8); //TODO: check the encoding in SXF created in Linux
+        char* pszRecoded = CPLRecode(szName + 2, "CP1251", CPL_ENC_UTF8);
+        passport.sMapSheet = pszRecoded; //TODO: check the encoding in SXF created in Linux
+        CPLFree(pszRecoded);
 
-        passport.nScale = *(unsigned long *)(buff + 32);
+        memcpy(&passport.nScale, buff + 32, 4);
+        CPL_LSBPTR32(&passport.nScale);
 
         memset(szName, 0, 26);
         memcpy(szName, buff + 36, 26);
-        passport.sMapSheetName = CPLRecode(szName, "CP866", CPL_ENC_UTF8); //TODO: check the encoding in SXF created in Linux
-
+        pszRecoded = CPLRecode(szName, "CP866", CPL_ENC_UTF8);
+        passport.sMapSheetName = pszRecoded; //TODO: check the encoding in SXF created in Linux
+        CPLFree(pszRecoded);
 
     }
     else if (passport.version == 4)
@@ -321,12 +315,18 @@ OGRErr OGRSXFDataSource::ReadSXFDescription(VSILFILE* fpSXF, SXFPassport& passpo
 
         char szName[32] = { 0 };
         memcpy(szName, buff + 12, 32);
-        passport.sMapSheet = CPLRecode(szName + 2, "CP1251", CPL_ENC_UTF8); //TODO: check the encoding in SXF created in Linux
-        passport.nScale = *(unsigned long *)(buff + 44);
+        char* pszRecoded = CPLRecode(szName + 2, "CP1251", CPL_ENC_UTF8);
+        passport.sMapSheet = pszRecoded; //TODO: check the encoding in SXF created in Linux
+        CPLFree(pszRecoded);
+        
+        memcpy(&passport.nScale, buff + 44, 4);
+        CPL_LSBPTR32(&passport.nScale);
 
         memset(szName, 0, 32);
         memcpy(szName, buff + 48, 32);
-        passport.sMapSheetName = CPLRecode(szName, "CP1251", CPL_ENC_UTF8); //TODO: check the encoding in SXF created in Linux
+        pszRecoded = CPLRecode(szName, "CP1251", CPL_ENC_UTF8);
+        passport.sMapSheetName = pszRecoded; //TODO: check the encoding in SXF created in Linux
+        CPLFree(pszRecoded);
     }
 
     return OGRERR_NONE;
@@ -775,31 +775,37 @@ void OGRSXFDataSource::FillLayers()
 
         if (nObjectsRead != 1 || buff[0] != IDSXFOBJ)
         {
-            CPLError(CE_Failure, CPLE_FileIO, "Read record %d failed", nFID);
+            CPLError(CE_Failure, CPLE_FileIO, "Read record %ld failed", nFID);
             return;
         }
 
-	bool bIsSupported = oSXFPassport.version == 3 || !CHECK_BIT(buff[5], 2); 
-	if(bIsSupported)
-	{
-		bool bHasSemantic = CHECK_BIT(buff[5], 9);
-		if (bHasSemantic) //check has attributes
-		{
-		    //we have already 24 byte readed
-		    nOffsetSemantic = 8 + buff[2];
-		    VSIFSeekL(fpSXF, nOffsetSemantic, SEEK_CUR);
-		}
+        bool bIsSupported = oSXFPassport.version == 3 || !CHECK_BIT(buff[5], 2); 
+        if(bIsSupported)
+        {
+            bool bHasSemantic = CHECK_BIT(buff[5], 9);
+            if (bHasSemantic) //check has attributes
+            {
+                //we have already 24 byte readed
+                nOffsetSemantic = 8 + buff[2];
+                VSIFSeekL(fpSXF, nOffsetSemantic, SEEK_CUR);
+            }
 
-		int nSemanticSize = buff[1] - 32 - buff[2];
-		for (i = 0; i < nLayers; i++)
-		{
-		    OGRSXFLayer* pOGRSXFLayer = (OGRSXFLayer*)papoLayers[i];
-		    if (pOGRSXFLayer && pOGRSXFLayer->AddRecord(nFID, buff[3], nOffset, bHasSemantic, nSemanticSize) == TRUE)
-		    {
-		        break;
-		    }
-		}
-	}
+            int nSemanticSize = buff[1] - 32 - buff[2];
+            if( nSemanticSize < 0 )
+            {
+                CPLError(CE_Failure, CPLE_AppDefined, "Invalid value");
+                break;
+            }
+            for (i = 0; i < nLayers; i++)
+            {
+                OGRSXFLayer* pOGRSXFLayer = (OGRSXFLayer*)papoLayers[i];
+                if (pOGRSXFLayer && pOGRSXFLayer->AddRecord(nFID, buff[3], nOffset, bHasSemantic, nSemanticSize) == TRUE)
+                {
+                    break;
+                }
+            }
+        }
+
         nOffset += buff[1];
         VSIFSeekL(fpSXF, nOffset, SEEK_SET);
     }
@@ -820,6 +826,8 @@ void OGRSXFDataSource::FillLayers()
             nLayers--;
             i--;
         }
+        else if (pOGRSXFLayer)
+            pOGRSXFLayer->ResetReading();
     }
 }
 
@@ -1134,10 +1142,18 @@ void OGRSXFDataSource::CreateLayers(VSILFILE* fpRSC)
         papoLayers = (OGRLayer**)CPLRealloc(papoLayers, sizeof(OGRLayer*)* (nLayers + 1));
         bool bLayerFullName = CSLTestBoolean(CPLGetConfigOption("SXF_LAYER_FULLNAME", "NO"));
 
+        char* pszRecoded;
         if (bLayerFullName)
-            papoLayers[nLayers] = new OGRSXFLayer(fpSXF, &hIOMutex, LAYER.nNo, CPLString(CPLRecode(LAYER.szName, "CP1251", CPL_ENC_UTF8)), oSXFPassport.version, oSXFPassport.stMapDescription);
+        {
+            pszRecoded = CPLRecode(LAYER.szName, "CP1251", CPL_ENC_UTF8);
+            papoLayers[nLayers] = new OGRSXFLayer(fpSXF, &hIOMutex, LAYER.nNo, CPLString(pszRecoded), oSXFPassport.version, oSXFPassport.stMapDescription);
+        }
         else
-            papoLayers[nLayers] = new OGRSXFLayer(fpSXF, &hIOMutex, LAYER.nNo, CPLString(CPLRecode(LAYER.szShortName, "CP1251", CPL_ENC_UTF8)), oSXFPassport.version, oSXFPassport.stMapDescription);
+        {
+            pszRecoded = CPLRecode(LAYER.szShortName, "CP1251", CPL_ENC_UTF8);
+            papoLayers[nLayers] = new OGRSXFLayer(fpSXF, &hIOMutex, LAYER.nNo, CPLString(pszRecoded), oSXFPassport.version, oSXFPassport.stMapDescription);
+        }
+        CPLFree(pszRecoded);
         nLayers++;
 
         nOffset += LAYER.nLength;

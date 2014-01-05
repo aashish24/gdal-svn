@@ -262,6 +262,7 @@ typedef struct{
     GUInt32 nClassifyCode;      /* Classification code */
     GUInt16 anGroup[2];         /* 0 - group no, 1 - no in group */
     GByte   nRef[3];            /* Reference data */
+    GByte   byPadding;
     GUInt32 nPointCount;        /* Point count */
     GUInt16 nSubObjectCount;    /* The sub object count */
     GUInt16 nPointCountSmall;   /* Point count in small geometries */
@@ -343,7 +344,7 @@ typedef struct{
     char szMapType[32];
     char szClassifyName[32];
     char szClassifyCode[8];
-    long nScale;
+    GUInt32 nScale;
     char nScales[4];
     RSCSection Objects;
     RSCSection Semantic;
