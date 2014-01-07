@@ -62,6 +62,9 @@ GeoRasterWrapper::GeoRasterWrapper()
     dfYCoefficient[2]   = 0.0;
     sCompressionType    = "NONE";
     nCompressQuality    = 75;
+    bGenPyramid         = false;
+    nPyramidLevels      = 0;
+    sPyramidResampling  = "NN";
     pahLocator          = NULL;
     pabyBlockBuf        = NULL;
     pabyCompressBuf     = NULL;
@@ -1155,7 +1158,7 @@ bool GeoRasterWrapper::Create( char* pszDescription,
             sSchema.c_str(), sTable.c_str(),
             sColumn.c_str(), sColumn.c_str(), sColumn.c_str(),
             sSchema.c_str(), sSchema.c_str(), sSchema.c_str(),
-            UNKNOWN_CRS, MCL_DEFAULT,
+            DEFAULT_CRS, MCL_DEFAULT,
             sSchema.c_str(), sTable.c_str(),
             sColumn.c_str(), sColumn.c_str(), sColumn.c_str() ) );
 
@@ -1208,6 +1211,9 @@ void GeoRasterWrapper::PrepareToOverwrite( void )
     dfYCoefficient[2]   = 0.0;
     sCompressionType    = "NONE";
     nCompressQuality    = 75;
+    bGenPyramid         = false;
+    nPyramidLevels      = 0;
+    sPyramidResampling  = "NN";
     bIsReferenced       = false;
     nCacheBlockId       = -1;
     nCurrentLevel       = -1;
@@ -1456,12 +1462,6 @@ void GeoRasterWrapper::GetRasterInfo( void )
 
     nSRID               = atoi( CPLGetXMLValue( phMetadata,
                             "spatialReferenceInfo.SRID", "0" ) );
-
-    if( nSRID == 0 ||
-        nSRID == UNKNOWN_CRS )
-    {
-        bIsReferenced   = false;
-    }
 }
 
 //  ---------------------------------------------------------------------------
@@ -3271,6 +3271,18 @@ bool GeoRasterWrapper::FlushMetadata()
             "Cannot generate spatialExtent! (ORA-%d) ", nException );
     }
 
+    if (bGenPyramid) 
+    {
+        if (GeneratePyramid( nPyramidLevels, sPyramidResampling.c_str(), true ))
+        {
+            CPLDebug("GEOR", "Generated pyramid successfully.");
+        }
+        else
+        {
+            CPLError( CE_Warning, CPLE_AppDefined, "Error generating pyramid!");
+        }
+    }
+
     return true;
 }
 
@@ -3286,19 +3298,26 @@ bool GeoRasterWrapper::GeneratePyramid( int nLevels,
 
     if( bInternal )
     {
+        CPLString sLevels = "";
+
+        if (nLevels > 0)
+        {
+            sLevels = CPLSPrintf("rlevel=%d", nLevels);
+        }
+
         OWStatement* poStmt = poConnection->CreateStatement( CPLSPrintf(
             "DECLARE\n"
             "  gr sdo_georaster;\n"
             "BEGIN\n"
             "  SELECT %s INTO gr FROM %s t WHERE %s FOR UPDATE;\n"
-            "  sdo_geor.generatePyramid(gr, 'rlevel=%d resampling=%s');\n"
+            "  sdo_geor.generatePyramid(gr, '%s resampling=%s');\n"
             "  UPDATE %s t SET %s = gr WHERE %s;\n"
             "  COMMIT;\n"
             "END;\n",
                 sColumn.c_str(),
                 sTable.c_str(),
                 sWhere.c_str(),
-                nLevels,
+                sLevels.c_str(),
                 pszResampling,
                 sTable.c_str(),
                 sColumn.c_str(),

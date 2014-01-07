@@ -230,51 +230,10 @@ CPLXMLNode *VRTDataset::SerializeToXML( const char *pszVRTPath )
  /* -------------------------------------------------------------------- */
     if( nGCPCount > 0 )
     {
-        CPLXMLNode *psGCPList = CPLCreateXMLNode( psDSTree, CXT_Element, 
-                                                  "GCPList" );
-
-        CPLXMLNode* psLastChild = NULL;
-
-        if( pszGCPProjection != NULL && strlen(pszGCPProjection) > 0 )
-        {
-            CPLSetXMLValue( psGCPList, "#Projection", pszGCPProjection );
-            psLastChild = psGCPList->psChild;
-        }
-
-        for( int iGCP = 0; iGCP < nGCPCount; iGCP++ )
-        {
-            CPLXMLNode *psXMLGCP;
-            GDAL_GCP *psGCP = pasGCPList + iGCP;
-
-            psXMLGCP = CPLCreateXMLNode( NULL, CXT_Element, "GCP" );
-
-            if( psLastChild == NULL )
-                psGCPList->psChild = psXMLGCP;
-            else
-                psLastChild->psNext = psXMLGCP;
-            psLastChild = psXMLGCP;
-
-            CPLSetXMLValue( psXMLGCP, "#Id", psGCP->pszId );
-
-            if( psGCP->pszInfo != NULL && strlen(psGCP->pszInfo) > 0 )
-                CPLSetXMLValue( psXMLGCP, "Info", psGCP->pszInfo );
-
-            CPLSetXMLValue( psXMLGCP, "#Pixel", 
-                            CPLSPrintf( "%.4f", psGCP->dfGCPPixel ) );
-
-            CPLSetXMLValue( psXMLGCP, "#Line", 
-                            CPLSPrintf( "%.4f", psGCP->dfGCPLine ) );
-
-            CPLSetXMLValue( psXMLGCP, "#X", 
-                            CPLSPrintf( "%.12E", psGCP->dfGCPX ) );
-
-            CPLSetXMLValue( psXMLGCP, "#Y", 
-                            CPLSPrintf( "%.12E", psGCP->dfGCPY ) );
-
-            if( psGCP->dfGCPZ != 0.0 )
-                CPLSetXMLValue( psXMLGCP, "#GCPZ", 
-                                CPLSPrintf( "%.12E", psGCP->dfGCPZ ) );
-        }
+        GDALSerializeGCPListToXML( psDSTree,
+                                   pasGCPList,
+                                   nGCPCount,
+                                   pszGCPProjection );
     }
 
     /* -------------------------------------------------------------------- */
@@ -380,55 +339,12 @@ CPLErr VRTDataset::XMLInit( CPLXMLNode *psTree, const char *pszVRTPath )
 
     if( psGCPList != NULL )
     {
-        CPLXMLNode *psXMLGCP;
-        OGRSpatialReference oSRS;
-        const char *pszRawProj = CPLGetXMLValue(psGCPList, "Projection", "");
-
-        CPLFree( pszGCPProjection );
-
-        if( strlen(pszRawProj) > 0 
-            && oSRS.SetFromUserInput( pszRawProj ) == OGRERR_NONE )
-            oSRS.exportToWkt( &pszGCPProjection );
-        else
-            pszGCPProjection = CPLStrdup("");
-
-        // Count GCPs.
-        int  nGCPMax = 0;
-         
-        for( psXMLGCP = psGCPList->psChild; psXMLGCP != NULL; 
-             psXMLGCP = psXMLGCP->psNext )
-            nGCPMax++;
-         
-        pasGCPList = (GDAL_GCP *) CPLCalloc(sizeof(GDAL_GCP),nGCPMax);
-         
-        for( psXMLGCP = psGCPList->psChild; psXMLGCP != NULL; 
-             psXMLGCP = psXMLGCP->psNext )
-        {
-            GDAL_GCP *psGCP = pasGCPList + nGCPCount;
-
-            if( !EQUAL(psXMLGCP->pszValue,"GCP") || 
-                psXMLGCP->eType != CXT_Element )
-                continue;
-             
-            GDALInitGCPs( 1, psGCP );
-             
-            CPLFree( psGCP->pszId );
-            psGCP->pszId = CPLStrdup(CPLGetXMLValue(psXMLGCP,"Id",""));
-             
-            CPLFree( psGCP->pszInfo );
-            psGCP->pszInfo = CPLStrdup(CPLGetXMLValue(psXMLGCP,"Info",""));
-             
-            psGCP->dfGCPPixel = atof(CPLGetXMLValue(psXMLGCP,"Pixel","0.0"));
-            psGCP->dfGCPLine = atof(CPLGetXMLValue(psXMLGCP,"Line","0.0"));
-             
-            psGCP->dfGCPX = atof(CPLGetXMLValue(psXMLGCP,"X","0.0"));
-            psGCP->dfGCPY = atof(CPLGetXMLValue(psXMLGCP,"Y","0.0"));
-            psGCP->dfGCPZ = atof(CPLGetXMLValue(psXMLGCP,"Z","0.0"));
-
-            nGCPCount++;
-        }
+        GDALDeserializeGCPListFromXML( psGCPList,
+                                       &pasGCPList,
+                                       &nGCPCount,
+                                       &pszGCPProjection );
     }
-     
+
 /* -------------------------------------------------------------------- */
 /*      Apply any dataset level metadata.                               */
 /* -------------------------------------------------------------------- */
@@ -1361,7 +1277,7 @@ CPLErr VRTDataset::IRasterIO( GDALRWFlag eRWFlag,
     {
         bCompatibleForDatasetIO = CheckCompatibleForDatasetIO();
     }
-    if (bCompatibleForDatasetIO && eRWFlag == GF_Read && nBandCount > 1)
+    if (bCompatibleForDatasetIO && eRWFlag == GF_Read)
     {
         for(int iBandIndex=0; iBandIndex<nBandCount; iBandIndex++)
         {

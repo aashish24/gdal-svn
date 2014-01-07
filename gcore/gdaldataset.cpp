@@ -1465,7 +1465,7 @@ CPLErr GDALDataset::IRasterIO( GDALRWFlag eRWFlag,
 
     CPLAssert( NULL != pData );
 
-    if (nXSize == nBufXSize && nYSize == nBufYSize &&
+    if (nXSize == nBufXSize && nYSize == nBufYSize && nBandCount > 1 &&
         (pszInterleave = GetMetadataItem("INTERLEAVE", "IMAGE_STRUCTURE")) != NULL &&
         EQUAL(pszInterleave, "PIXEL"))
     {
@@ -1586,7 +1586,7 @@ CPLErr GDALDataset::ValidateRasterIOOrAdviseReadParameters(
  * translation if the data type (eBufType) of the buffer is different than
  * that of the GDALRasterBand.
  * The method also takes care of image decimation / replication if the
- * buffer size (nBufXSize x n    CPLErr eErr = CE_None;BufYSize) is different than the size of the
+ * buffer size (nBufXSize x nBufYSize) is different than the size of the
  * region being accessed (nXSize x nYSize).
  *
  * The nPixelSpace, nLineSpace and nBandSpace parameters allow reading into or

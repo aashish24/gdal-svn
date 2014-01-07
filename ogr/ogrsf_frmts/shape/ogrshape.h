@@ -33,6 +33,7 @@
 
 #include "ogrsf_frmts.h"
 #include "shapefil.h"
+#include "shp_vsi.h"
 #include "ogrlayerpool.h"
 #include <vector>
 
@@ -119,7 +120,6 @@ class OGRShapeLayer : public OGRAbstractProxiedLayer
 
     void                TruncateDBF();
 
-
   protected:
 
     virtual void        CloseUnderlyingLayer();
@@ -197,6 +197,8 @@ class OGRShapeDataSource : public OGRDataSource
     void                AddLayer(OGRShapeLayer* poLayer);
 
     std::vector<CPLString> oVectorLayerName;
+    
+    int                 b2GBLimit;
 
   public:
                         OGRShapeDataSource();
@@ -228,6 +230,9 @@ class OGRShapeDataSource : public OGRDataSource
 
     void                 SetLastUsedLayer( OGRShapeLayer* poLayer );
     void                 UnchainLayer( OGRShapeLayer* poLayer );
+
+    SHPHandle            DS_SHPOpen( const char * pszShapeFile, const char * pszAccess );
+    DBFHandle            DS_DBFOpen( const char * pszDBFFile, const char * pszAccess );
 };
 
 /************************************************************************/

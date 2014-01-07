@@ -61,7 +61,17 @@ class CPL_DLL OGREnvelope
     double      MinY;
     double      MaxY;
 
+/* See http://trac.osgeo.org/gdal/ticket/5299 for details on this pragma */
+#if (((__GNUC__ * 100) + __GNUC_MINOR__) >= 406 && !defined(_MSC_VER)) 
+#pragma GCC diagnostic ignored push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+#endif
     int  IsInit() const { return MinX != 0 || MinY != 0 || MaxX != 0 || MaxY != 0; }
+
+#if (((__GNUC__ * 100) + __GNUC_MINOR__) >= 406 && !defined(_MSC_VER)) 
+#pragma GCC diagnostic pop
+#endif
+
     void Merge( OGREnvelope const& sOther ) {
         if( IsInit() )
         {
@@ -288,12 +298,12 @@ typedef int     OGRBoolean;
 /* -------------------------------------------------------------------- */
 /*      ogr_geometry.h related definitions.                             */
 /* -------------------------------------------------------------------- */
+
 /**
  * List of well known binary geometry types.  These are used within the BLOBs
  * but are also returned from OGRGeometry::getGeometryType() to identify the
  * type of a geometry object.
  */
-
 typedef enum 
 {
     wkbUnknown = 0,         /**< unknown type, non-standard */
@@ -318,6 +328,19 @@ typedef enum
     wkbMultiPolygon25D = 0x80000006, /**< 2.5D extension as per 99-402 */
     wkbGeometryCollection25D = 0x80000007 /**< 2.5D extension as per 99-402 */
 } OGRwkbGeometryType;
+
+/**
+ * Output variants of WKB we support. 
+ * 99-402 was a short-lived extension to SFSQL 1.1 that used a high-bit flag
+ * to indicate the presence of Z coordiantes in a WKB geometry.
+ * SQL/MM Part 3 and SFSQL 1.2 use offsets of 1000 (Z), 2000 (M) and 3000 (ZM)
+ * to indicate the present of higher dimensional coordinates in a WKB geometry.
+ */
+typedef enum 
+{
+    wkbVariantOgc, /**< Old-style 99-402 extended dimension (Z) WKB types */
+    wkbVariantIso  /**< SFSQL 1.2 and ISO SQL/MM Part 3 extended dimension (Z&M) WKB types */
+} OGRwkbVariant;
 
 #define wkb25DBit 0x80000000
 #define wkbFlatten(x)  ((OGRwkbGeometryType) ((x) & (~wkb25DBit)))

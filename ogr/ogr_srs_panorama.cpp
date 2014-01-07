@@ -69,7 +69,6 @@ CPL_CVSID("$Id$");
 #define PAN_PROJ_IMWP   29L     // International Map of the World Polyconic
 #define PAN_PROJ_MILLER 34L     // Miller
 
-
 /************************************************************************/
 /*  "Panorama" datum codes.                                             */
 /************************************************************************/

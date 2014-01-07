@@ -54,6 +54,7 @@ endif(SQLITE3_FOUND)
 set(LIB_HHEADERS
 	gmlreader.h
 	gmlreaderp.h
+    gmlregistry.h
 	gmlutils.h
 	ogr_gml.h
 	parsexsd.h
@@ -67,6 +68,7 @@ set(LIB_CSOURCES
 	gmlpropertydefn.cpp
 	gmlreader.cpp
 	gmlreadstate.cpp
+    gmlregistry.cpp
 	gmlutils.cpp
 	hugefileresolver.cpp
 	ogrgmldatasource.cpp

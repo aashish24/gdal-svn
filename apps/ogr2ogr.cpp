@@ -1799,7 +1799,7 @@ int main( int nArgc, char ** papszArgv )
                           "Terminating translation prematurely after failed\n"
                           "translation from sql statement." );
 
-                exit( 1 );
+                nRetCode = 1;
             }
 
             FreeTargetLayerInfo(psInfo);
@@ -1982,7 +1982,8 @@ int main( int nArgc, char ** papszArgv )
                                 "translation of layer %s (use -skipfailures to skip errors)\n",
                                 poLayer->GetName() );
 
-                        exit( 1 );
+                        nRetCode = 1;
+                        break;
                     }
                 }
                 else
@@ -2131,7 +2132,7 @@ int main( int nArgc, char ** papszArgv )
 
         /* Second pass to do the real job */
         for( iLayer = 0; 
-            iLayer < nLayerCount; 
+            iLayer < nLayerCount && nRetCode == 0; 
             iLayer++ )
         {
             OGRLayer        *poLayer = papoLayers[iLayer];
@@ -2232,7 +2233,7 @@ int main( int nArgc, char ** papszArgv )
                         "translation of layer %s (use -skipfailures to skip errors)\n", 
                         poLayer->GetName() );
 
-                exit( 1 );
+                nRetCode = 1;
             }
 
             FreeTargetLayerInfo(psInfo);
@@ -3395,16 +3396,16 @@ static int TranslateLayer( TargetLayerInfo* psInfo,
 
             /* Optimization to avoid duplicating the source geometry in the */
             /* target feature : we steal it from the source feature for now... */
-            OGRGeometry* poStealedGeometry = NULL;
+            OGRGeometry* poStolenGeometry = NULL;
             if( !bExplodeCollections && nSrcGeomFieldCount == 1 &&
                 nDstGeomFieldCount == 1 )
             {
-                poStealedGeometry = poFeature->StealGeometry();
+                poStolenGeometry = poFeature->StealGeometry();
             }
             else if( !bExplodeCollections &&
                      psInfo->iRequestedSrcGeomField >= 0 )
             {
-                poStealedGeometry = poFeature->StealGeometry(
+                poStolenGeometry = poFeature->StealGeometry(
                     psInfo->iRequestedSrcGeomField);
             }
 
@@ -3419,14 +3420,14 @@ static int TranslateLayer( TargetLayerInfo* psInfo,
 
                 OGRFeature::DestroyFeature( poFeature );
                 OGRFeature::DestroyFeature( poDstFeature );
-                OGRGeometryFactory::destroyGeometry( poStealedGeometry );
+                OGRGeometryFactory::destroyGeometry( poStolenGeometry );
                 return FALSE;
             }
 
-            /* ... and now we can attach the stealed geometry */
-            if( poStealedGeometry )
+            /* ... and now we can attach the stolen geometry */
+            if( poStolenGeometry )
             {
-                poDstFeature->SetGeometryDirectly(poStealedGeometry);
+                poDstFeature->SetGeometryDirectly(poStolenGeometry);
             }
 
             if( bPreserveFID )
