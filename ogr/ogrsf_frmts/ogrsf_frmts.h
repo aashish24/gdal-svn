@@ -98,6 +98,7 @@ class CPL_DLL OGRLayer
     virtual const char *GetName();
     virtual OGRwkbGeometryType GetGeomType();
     virtual OGRFeatureDefn *GetLayerDefn() = 0;
+    virtual int         FindFieldIndex( const char *pszFieldName, int bExactMatch );
 
     virtual OGRSpatialReference *GetSpatialRef();
 
@@ -189,6 +190,7 @@ class CPL_DLL OGRLayer
  protected:
     OGRStyleTable       *m_poStyleTable;
     OGRFeatureQuery     *m_poAttrQuery;
+    char                *m_pszAttrQueryString;
     OGRLayerAttrIndex   *m_poAttrIndex;
 
     int                  m_nRefCount;
@@ -448,6 +450,7 @@ void CPL_DLL RegisterOGRElastic();
 void CPL_DLL RegisterOGRPDF();
 void CPL_DLL RegisterOGRWalk();
 void CPL_DLL RegisterOGRCartoDB();
+void CPL_DLL RegisterOGRSXF();
 CPL_C_END
 
 

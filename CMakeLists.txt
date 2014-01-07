@@ -1,6 +1,4 @@
-# ******************************************************************************
-# * Project:  CMake4GDAL
-# * Purpose:  CMake build scripts
+# ******************************************************************************# * Project:  CMake4GDAL# * Purpose:  CMake build scripts
 # * Author: Dmitriy Baryshnikov (aka Bishop), polimax@mail.ru
 # ******************************************************************************
 # * Copyright (C) 2012,2013 Bishop
@@ -25,6 +23,7 @@
 # ******************************************************************************
 
 cmake_minimum_required (VERSION 2.8.10)
+
 set(PROJECT_NAME "gdallib")
 project(${PROJECT_NAME})
 
@@ -60,10 +59,9 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(GDAL_ROOT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(GDAL_ROOT_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
-
-
-
+set(GDAL_ROOT_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -W4 -wd4127 -wd4251 -wd4275 -wd4786 -wd4100 -wd4245 -wd4206 -wd4018 -wd4389")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -W4 -wd4127 -wd4251 -wd4275 -wd4786 -wd4100 -wd4245 -wd4206 -wd4018 -wd4389")
 # set path to additional CMake modules
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
@@ -78,30 +76,29 @@ endif(WIN32)
 if(MSVC)
   set(CMAKE_DEBUG_POSTFIX "d")
   add_definitions(-D_CRT_SECURE_NO_DEPRECATE -D_CRT_NONSTDC_NO_DEPRECATE)
-  add_definitions(-D_MBCS)
+  #add_definitions(-D_MBCS)
   set(GDAL_CSOURCES ${GDAL_CSOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/gcore/Version.rc)
   source_group("Resource Files" FILES ${CMAKE_CURRENT_SOURCE_DIR}/gcore/Version.rc)  
 endif(MSVC)
 
-add_definitions(-DSTRICT)
-# For windows, do not allow the compiler to use default target (Vista).
-if(WIN32)
-  add_definitions(-D_WIN32_WINNT=0x0501)
-endif(WIN32)
+add_definitions(-DSTRICT -DHAVE_SSE_AT_COMPILE_TIME)
+if(UNIX)
+    add_definitions(-DCPL_LSB)
+endif(UNIX)
 
 if(MSVC)
     if(CMAKE_CL_64)
         set_target_properties(${GDAL_LIB_NAME} PROPERTIES STATIC_LIBRARY_FLAGS "/machine:x64")
         add_definitions(-D_WIN64)
-    endif()
-endif()
+    endif(CMAKE_CL_64)
+endif(MSVC)
 
 if(UNIX)
      if(CMAKE_COMPILER_IS_GNUCXX OR CV_ICC)
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -fno-strict-aliasing")#-Wextra -Wall -W -pthread -O2 -fno-strict-aliasing -pthrea
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -fno-strict-aliasing")
      endif()
-endif()
+endif(UNIX)
 
 option(GDAL_USE_CPL "Set ON to use cpl" ON)
 

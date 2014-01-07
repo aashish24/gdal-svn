@@ -761,22 +761,29 @@ OGRGeometry *GML2OGRGeometry_XMLNode( const CPLXMLNode *psNode,
                 && EQUAL(BareGMLElement(psChild->pszValue),"curveMember") )
             {
                 const CPLXMLNode* psCurveChild = GetChildElement(psChild);
-                OGRLineString *poLS;
+                OGRGeometry* poGeom;
                 if (psCurveChild != NULL)
-                    poLS = (OGRLineString *) 
+                    poGeom =
                         GML2OGRGeometry_XMLNode( psCurveChild, bGetSecondaryGeometryOption,
                                                  nRecLevel + 1);
                 else
-                    poLS = NULL;
+                    poGeom = NULL;
 
-                if( poLS == NULL 
-                    || wkbFlatten(poLS->getGeometryType()) != wkbLineString )
+                // try to join multiline string to one linestring
+                if( poGeom && wkbFlatten(poGeom->getGeometryType()) == wkbMultiLineString )
                 {
-                    delete poLS;
+                    poGeom = OGRGeometryFactory::forceToLineString( poGeom, false );
+                }
+
+                if( poGeom == NULL 
+                    || wkbFlatten(poGeom->getGeometryType()) != wkbLineString )
+                {
+                    delete poGeom;
                     delete poLinearRing;
                     return NULL;
                 }
 
+                OGRLineString *poLS = (OGRLineString *) poGeom;
                 if( poLS->getNumPoints() < 2 )
                 {
                     // skip it
@@ -2000,13 +2007,50 @@ OGRGeometry *GML2OGRGeometry_XMLNode( const CPLXMLNode *psNode,
                   return NULL;
                 }
 
+                OGRLineString *poLS;
+                OGRLineString *poAddLS;
                 if( !bFaceOrientation )
                 {
-                  if( poFaceGeom->getNumPoints() > 0 )
-                    ((OGRLinearRing *)poEdgeGeom)->addSubLineString( (OGRLineString *)poFaceGeom );
+                  poLS = (OGRLineString *)poEdgeGeom;
+                  poAddLS = (OGRLineString *)poFaceGeom;
+                  if( poLS->getNumPoints() > 0 && poAddLS->getNumPoints() > 0
+                      && fabs(poLS->getX(poLS->getNumPoints()-1)
+                              - poAddLS->getX(0)) < 1e-14
+                      && fabs(poLS->getY(poLS->getNumPoints()-1)
+                              - poAddLS->getY(0)) < 1e-14
+                      && fabs(poLS->getZ(poLS->getNumPoints()-1)
+                              - poAddLS->getZ(0)) < 1e-14) 
+                  {
+                      // Skip the first point of the new linestring to avoid
+                      // invalidate duplicate points
+                      poLS->addSubLineString( poAddLS, 1 );
+                  }
+                  else
+                  {
+                      // Add the whole new line string
+                      poLS->addSubLineString( poAddLS );
+                  }
                   poFaceGeom->empty();
                 }
-                poFaceGeom->addSubLineString( (OGRLinearRing *)poEdgeGeom );
+                poLS = (OGRLineString *)poFaceGeom;
+                poAddLS = (OGRLineString *)poEdgeGeom;
+                if( poLS->getNumPoints() > 0 && poAddLS->getNumPoints() > 0
+                    && fabs(poLS->getX(poLS->getNumPoints()-1)
+                            - poAddLS->getX(0)) < 1e-14
+                    && fabs(poLS->getY(poLS->getNumPoints()-1)
+                            - poAddLS->getY(0)) < 1e-14
+                    && fabs(poLS->getZ(poLS->getNumPoints()-1)
+                            - poAddLS->getZ(0)) < 1e-14) 
+                {
+                    // Skip the first point of the new linestring to avoid
+                    // invalidate duplicate points
+                    poLS->addSubLineString( poAddLS, 1 );
+                }
+                else
+                {
+                    // Add the whole new line string
+                    poLS->addSubLineString( poAddLS );
+                }
                 delete poEdgeGeom;
               }
             }

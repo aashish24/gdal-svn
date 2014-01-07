@@ -36,6 +36,29 @@
 
 CPL_CVSID("$Id$");
 
+
+/************************************************************************/
+/*                          DS_SHPOpen()                                */
+/************************************************************************/
+
+SHPHandle OGRShapeDataSource::DS_SHPOpen( const char * pszShapeFile, const char * pszAccess )
+{
+    SHPHandle hSHP = SHPOpenLL( pszShapeFile, pszAccess, (SAHooks*) VSI_SHP_GetHook(b2GBLimit) );
+    if( hSHP != NULL )
+        SHPSetFastModeReadObject( hSHP, TRUE );
+    return hSHP;
+}
+
+/************************************************************************/
+/*                           DS_DBFOpen()                               */
+/************************************************************************/
+
+DBFHandle OGRShapeDataSource::DS_DBFOpen( const char * pszDBFFile, const char * pszAccess )
+{
+    DBFHandle hDBF = DBFOpenLL( pszDBFFile, pszAccess, (SAHooks*) VSI_SHP_GetHook(b2GBLimit) );
+    return hDBF;
+}
+
 /************************************************************************/
 /*                         OGRShapeDataSource()                         */
 /************************************************************************/
@@ -48,6 +71,7 @@ OGRShapeDataSource::OGRShapeDataSource()
     nLayers = 0;
     bSingleFileDataSource = FALSE;
     poPool = new OGRLayerPool();
+    b2GBLimit = CSLTestBoolean(CPLGetConfigOption("SHAPE_2GB_LIMIT", "FALSE"));
 }
 
 /************************************************************************/
@@ -288,9 +312,9 @@ int OGRShapeDataSource::OpenFile( const char *pszNewName, int bUpdate,
 /* -------------------------------------------------------------------- */
     CPLPushErrorHandler( CPLQuietErrorHandler );
     if( bUpdate )
-        hSHP = SHPOpen( pszNewName, "r+" );
+        hSHP = DS_SHPOpen( pszNewName, "r+" );
     else
-        hSHP = SHPOpen( pszNewName, "r" );
+        hSHP = DS_SHPOpen( pszNewName, "r" );
     CPLPopErrorHandler();
 
     if( hSHP == NULL 
@@ -314,7 +338,7 @@ int OGRShapeDataSource::OpenFile( const char *pszNewName, int bUpdate,
     {
         if( bUpdate )
         {
-            hDBF = DBFOpen( pszNewName, "r+" );
+            hDBF = DS_DBFOpen( pszNewName, "r+" );
             if( hSHP != NULL && hDBF == NULL )
             {
                 for(int i=0;i<2;i++)
@@ -341,7 +365,7 @@ int OGRShapeDataSource::OpenFile( const char *pszNewName, int bUpdate,
             }
         }
         else
-            hDBF = DBFOpen( pszNewName, "r" );
+            hDBF = DS_DBFOpen( pszNewName, "r" );
     }
     else
         hDBF = NULL;
@@ -569,11 +593,13 @@ OGRShapeDataSource::CreateLayer( const char * pszLayerName,
 /* -------------------------------------------------------------------- */
     char        *pszFilename;
 
+    int b2GBLimit = CSLTestBoolean(CSLFetchNameValueDef( papszOptions, "2GB_LIMIT", "FALSE" ));
+
     if( nShapeType != SHPT_NULL )
     {
         pszFilename = CPLStrdup(CPLFormFilename( NULL, pszFilenameWithoutExt, "shp" ));
 
-        hSHP = SHPCreate( pszFilename, nShapeType );
+        hSHP = SHPCreateLL( pszFilename, nShapeType, (SAHooks*) VSI_SHP_GetHook(b2GBLimit) );
         
         if( hSHP == NULL )
         {
@@ -584,6 +610,9 @@ OGRShapeDataSource::CreateLayer( const char * pszLayerName,
             CPLFree( pszFilenameWithoutExt );
             return NULL;
         }
+        
+        SHPSetFastModeReadObject( hSHP, TRUE );
+
         CPLFree( pszFilename );
     }
     else
@@ -600,9 +629,9 @@ OGRShapeDataSource::CreateLayer( const char * pszLayerName,
     pszFilename = CPLStrdup(CPLFormFilename( NULL, pszFilenameWithoutExt, "dbf" ));
 
     if( pszLDID != NULL )
-        hDBF = DBFCreateEx( pszFilename, pszLDID );
+        hDBF = DBFCreateLL( pszFilename, pszLDID, (SAHooks*) VSI_SHP_GetHook(b2GBLimit) );
     else
-        hDBF = DBFCreate( pszFilename );
+        hDBF = DBFCreateLL( pszFilename, "LDID/87",(SAHooks*) VSI_SHP_GetHook(b2GBLimit) );
 
     if( hDBF == NULL )
     {

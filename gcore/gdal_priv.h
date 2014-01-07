@@ -112,6 +112,8 @@ class CPL_DLL GDALMajorObject
     CPLString           sDescription;
     GDALMultiDomainMetadata oMDMD;
     
+    char               **BuildMetadataDomainList(char** papszList, int bCheckNonEmpty, ...) CPL_NULL_TERMINATED;
+    
   public:
                         GDALMajorObject();
     virtual            ~GDALMajorObject();
@@ -122,6 +124,8 @@ class CPL_DLL GDALMajorObject
     virtual const char *GetDescription() const;
     virtual void        SetDescription( const char * );
 
+    virtual char      **GetMetadataDomainList();
+    
     virtual char      **GetMetadata( const char * pszDomain = "" );
     virtual CPLErr      SetMetadata( char ** papszMetadata,
                                      const char * pszDomain = "" );
@@ -428,6 +432,9 @@ class CPL_DLL GDALRasterBlock
     static void Verify();
 
     static int  SafeLockBlock( GDALRasterBlock ** );
+    
+    /* Should only be called by GDALDestroyDriverManager() */
+    static void DestroyRBMutex();
 };
 
 /* ******************************************************************** */
@@ -958,5 +965,18 @@ CPLErr EXIFExtractMetadata(char**& papszMetadata,
 // Number of data samples that will be used to compute approximate statistics
 // (minimum value, maximum value, etc.)
 #define GDALSTAT_APPROX_NUMSAMPLES 2500
+
+CPL_C_START
+/* Caution: for technical reason this declaration is duplicated in gdal_crs.c */
+/* so any signature change should be reflected there too */
+void GDALSerializeGCPListToXML( CPLXMLNode* psParentNode,
+                                GDAL_GCP* pasGCPList,
+                                int nGCPCount,
+                                const char* pszGCPProjection );
+void GDALDeserializeGCPListFromXML( CPLXMLNode* psGCPList,
+                                    GDAL_GCP** ppasGCPList,
+                                    int* pnGCPCount,
+                                    char** ppszGCPProjection );
+CPL_C_END
 
 #endif /* ndef GDAL_PRIV_H_INCLUDED */

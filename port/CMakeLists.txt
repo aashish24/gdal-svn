@@ -31,8 +31,19 @@ project ("lib${LIB_NAME}")
 
 include (cmake_utils)
 
+#check Iconv
+option(GDAL_USE_ICONV "Set ON to use libiconv" ON)
+if(GDAL_USE_ICONV)
+    find_package(Iconv REQUIRED)
+    set(HAVE_ICONV ${ICONV_FOUND})
+    set(GDAL_HAVE_ICONV ${ICONV_FOUND} PARENT_SCOPE)
+    if(ICONV_SECOND_ARGUMENT_IS_CONST)
+      set(ICONV_CONST "const")
+    endif(ICONV_SECOND_ARGUMENT_IS_CONST)
+endif(GDAL_USE_ICONV)
+
 if(MSVC)
-    configure_file(cpl_config.h.vc ${GDAL_ROOT_SOURCE_DIR}/port/cpl_config.h @ONLY)
+    configure_file(${CMAKE_MODULE_PATH}/cpl_config.h.vc.cmake ${GDAL_ROOT_SOURCE_DIR}/port/cpl_config.h @ONLY)
 else(MSVC)
 
     # Include all the necessary files for macros
@@ -108,13 +119,6 @@ else(MSVC)
     gdal_add_definitions(HAVE_FLOAT_H)
 
     check_function_exists("getcwd" HAVE_GETCWD)
-
-    find_package(Iconv)
-    set(HAVE_ICONV ${ICONV_FOUND})
-    set(GDAL_HAVE_ICONV ${ICONV_FOUND} PARENT_SCOPE)
-    if(ICONV_SECOND_ARGUMENT_IS_CONST)
-      set(ICONV_CONST "const")
-    endif(ICONV_SECOND_ARGUMENT_IS_CONST)
 
     check_library_exists(c "" "" HAVE_LIBC)
     check_type_size("int16" HAVE_INT16)
@@ -290,6 +294,13 @@ set(LIB_CSOURCES
     cpl_progress.cpp
 )
 
+if(WIN32)
+    set(LIB_CSOURCES ${LIB_CSOURCES} cpl_vsil_win32.cpp)
+else(WIN32)
+    set(LIB_CSOURCES ${LIB_CSOURCES} cpl_vsil_unix_stdio_64.cpp)
+endif(WIN32)
+
+
 #check zip and internal zip
 option(GDAL_USE_LIBZ "Set ON to use libz" ON)
 if(GDAL_USE_LIBZ)
@@ -343,6 +354,13 @@ if(GDAL_USE_CURL)
 	endif(CURL_FOUND)
 endif(GDAL_USE_CURL)	
 
+#check Iconv
+option(GDAL_USE_ICONV "Set ON to use libiconv" ON)
+if(GDAL_USE_ICONV)
+    include_directories(${ICONV_INCLUDE_DIR})
+	add_definitions(-DHAVE_ICONV -DLIBICONV_PLUG)
+endif(GDAL_USE_ICONV)
+
 #check odbc
 option(GDAL_USE_ODBC "Set ON to use odbc" OFF)
 if(GDAL_USE_ODBC)
@@ -361,12 +379,6 @@ if(GDAL_USE_XMLREFORMAT)
 			xmlreformat.cpp  
 		)
 endif(GDAL_USE_XMLREFORMAT)
-
-if(WIN32)
-    set(LIB_CSOURCES ${LIB_CSOURCES} cpl_vsil_win32.cpp)
-else(WIN32)
-    set(LIB_CSOURCES ${LIB_CSOURCES} cpl_vsil_unix_stdio_64.cpp)
-endif(WIN32)
 
 # source_group("Header Files\\port" FILES ${LIB_HHEADERS})
 # source_group("Source Files\\port" FILES ${LIB_CSOURCES})

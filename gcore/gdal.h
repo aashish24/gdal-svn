@@ -285,11 +285,15 @@ GDALInvGeoTransform( double *padfGeoTransformIn,
                      double *padfInvGeoTransformOut ) CPL_WARN_UNUSED_RESULT;
 void CPL_DLL CPL_STDCALL GDALApplyGeoTransform( double *, double, double, 
                                                 double *, double * );
+void CPL_DLL GDALComposeGeoTransforms(const double *padfGeoTransform1,
+                                      const double *padfGeoTransform2,
+                                      double *padfGeoTransformOut);
 
 /* ==================================================================== */
 /*      major objects (dataset, and, driver, drivermanager).            */
 /* ==================================================================== */
 
+char CPL_DLL  ** CPL_STDCALL GDALGetMetadataDomainList( GDALMajorObjectH hObject );
 char CPL_DLL  ** CPL_STDCALL GDALGetMetadata( GDALMajorObjectH, const char * );
 CPLErr CPL_DLL CPL_STDCALL GDALSetMetadata( GDALMajorObjectH, char **,
                                             const char * );

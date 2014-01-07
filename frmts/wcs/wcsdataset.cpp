@@ -106,6 +106,7 @@ class CPL_DLL WCSDataset : public GDALPamDataset
     virtual const char *GetProjectionRef(void);
     virtual char **GetFileList(void);
 
+    virtual char      **GetMetadataDomainList();
     virtual char **GetMetadata( const char *pszDomain );
 };
 
@@ -391,6 +392,7 @@ CPLErr WCSRasterBand::IRasterIO( GDALRWFlag eRWFlag,
 double WCSRasterBand::GetNoDataValue( int *pbSuccess )
 
 {
+    CPLLocaleC  oLocaleEnforcer;
     const char *pszSV = CPLGetXMLValue( poODS->psService, "NoDataValue", NULL);
 
     if( pszSV == NULL )
@@ -945,6 +947,7 @@ int WCSDataset::DescribeCoverage()
 int WCSDataset::ExtractGridInfo100()
 
 {
+    CPLLocaleC  oLocaleEnforcer; 
     CPLXMLNode * psCO = CPLGetXMLNode( psService, "CoverageOffering" );
 
     if( psCO == NULL )
@@ -1274,6 +1277,7 @@ static int ParseBoundingBox( CPLXMLNode *psBoundingBox, CPLString &osCRS,
                              double &dfUpperX, double &dfUpperY )
 
 {
+    CPLLocaleC  oLocaleEnforcer; 
     int nRet = TRUE;
 
     osCRS = CPLGetXMLValue( psBoundingBox, "crs", "" );
@@ -1311,6 +1315,8 @@ static int ParseBoundingBox( CPLXMLNode *psBoundingBox, CPLString &osCRS,
 int WCSDataset::ExtractGridInfo()
 
 {
+    CPLLocaleC  oLocaleEnforcer; 
+
     if( nVersion == 100 )
         return ExtractGridInfo100();
 
@@ -2334,6 +2340,17 @@ char **WCSDataset::GetFileList()
 #endif /* def ESRI_BUILD */
     
     return papszFileList;
+}
+
+/************************************************************************/
+/*                      GetMetadataDomainList()                         */
+/************************************************************************/
+
+char **WCSDataset::GetMetadataDomainList()
+{
+    return BuildMetadataDomainList(GDALPamDataset::GetMetadataDomainList(),
+                                   TRUE,
+                                   "xml:CoverageOffering", NULL);
 }
 
 /************************************************************************/

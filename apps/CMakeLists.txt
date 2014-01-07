@@ -37,6 +37,7 @@ if(GDAL_BUILD_APPS)
     
 #gdalinfo
 	set(GDALINFO_HHEADERS
+        commonutils.h
 	)
 
 	set(GDALINFO_CSOURCES
@@ -83,6 +84,7 @@ apps_macro("gdal_grid" "${gdal_grid_CSOURCES}" "${gdal_grid_HHEADERS}")
 #gdal_translate    
 	include_directories(${GDAL_ROOT_SOURCE_DIR}/frmts/)
 	set(gdal_translate_HHEADERS
+        commonutils.h
 	)
 
 	set(gdal_translate_CSOURCES
@@ -129,6 +131,7 @@ apps_macro("gdal_grid" "${gdal_grid_CSOURCES}" "${gdal_grid_HHEADERS}")
 	
 #ogrinfo    
 	set(ogrinfo_HHEADERS
+        commonutils.h
 	)
 
 	set(ogrinfo_CSOURCES
@@ -148,3 +151,22 @@ apps_macro("gdal_grid" "${gdal_grid_CSOURCES}" "${gdal_grid_HHEADERS}")
 	apps_macro("ogr2ogr" "${ogr2ogr_CSOURCES}" "${ogr2ogr_HHEADERS}")    
 
 endif(GDAL_BUILD_APPS)
+
+option(GDAL_BUILD_TESTAPPS "Set ON to build test apps" OFF)
+if(GDAL_BUILD_TESTAPPS)
+
+	include(app)
+    
+#test_ogrsf.cpp
+	set(TEST_OGRSF_HHEADERS
+        commonutils.h
+	)
+
+	set(TEST_OGRSF_CSOURCES
+		test_ogrsf.cpp
+        commonutils.cpp
+	)
+
+	apps_macro("test_ogrsf" "${TEST_OGRSF_CSOURCES}" "${TEST_OGRSF_HHEADERS}")
+
+endif(GDAL_BUILD_TESTAPPS)

@@ -69,11 +69,12 @@ OGRLineString::~OGRLineString()
 OGRwkbGeometryType OGRLineString::getGeometryType() const
 
 {
-    if( getCoordinateDimension() == 3 )
+    if( nCoordDimension == 3 )
         return wkbLineString25D;
     else
         return wkbLineString;
 }
+
 
 /************************************************************************/
 /*                            flattenTo2D()                             */
@@ -297,7 +298,7 @@ double OGRLineString::getZ( int iVertex ) const
  * @param nNewPointCount the new number of points for geometry.
  */
 
-void OGRLineString::setNumPoints( int nNewPointCount )
+void OGRLineString::setNumPoints( int nNewPointCount, int bZeroizeNewContent )
 
 {
     if( nNewPointCount == 0 )
@@ -324,7 +325,8 @@ void OGRLineString::setNumPoints( int nNewPointCount )
         }
         paoPoints = paoNewPoints;
         
-        memset( paoPoints + nPointCount,
+        if( bZeroizeNewContent )
+            memset( paoPoints + nPointCount,
                 0, sizeof(OGRRawPoint) * (nNewPointCount - nPointCount) );
         
         if( getCoordinateDimension() == 3 )
@@ -338,7 +340,8 @@ void OGRLineString::setNumPoints( int nNewPointCount )
                 return;
             }
             padfZ = padfNewZ;
-            memset( padfZ + nPointCount, 0,
+            if( bZeroizeNewContent )
+                memset( padfZ + nPointCount, 0,
                     sizeof(double) * (nNewPointCount - nPointCount) );
         }
     }
@@ -433,6 +436,26 @@ void OGRLineString::setPoint( int iPoint, double xIn, double yIn )
 }
 
 /************************************************************************/
+/*                                setZ()                                */
+/************************************************************************/
+
+void OGRLineString::setZ( int iPoint, double zIn )
+{
+    if( getCoordinateDimension() == 2 )
+        Make3D();
+
+    if( iPoint >= nPointCount )
+    {
+        setNumPoints( iPoint+1 );
+        if (nPointCount < iPoint + 1)
+            return;
+    }
+
+    if( padfZ )
+        padfZ[iPoint] = zIn;
+}
+
+/************************************************************************/
 /*                              addPoint()                              */
 /************************************************************************/
 
@@ -507,7 +530,7 @@ void OGRLineString::setPoints( int nPointsIn, OGRRawPoint * paoPointsIn,
                                double * padfZ )
 
 {
-    setNumPoints( nPointsIn );
+    setNumPoints( nPointsIn, FALSE );
     if (nPointCount < nPointsIn)
         return;
 
@@ -563,7 +586,7 @@ void OGRLineString::setPoints( int nPointsIn, double * padfX, double * padfY,
 /* -------------------------------------------------------------------- */
 /*      Assign values.                                                  */
 /* -------------------------------------------------------------------- */
-    setNumPoints( nPointsIn );
+    setNumPoints( nPointsIn, FALSE );
     if (nPointCount < nPointsIn)
         return;
 
@@ -826,21 +849,11 @@ OGRErr OGRLineString::importFromWkb( unsigned char * pabyData,
 /*      geometry type is between 0 and 255 so we only have to fetch     */
 /*      one byte.                                                       */
 /* -------------------------------------------------------------------- */
+    OGRBoolean bIs3D;
     OGRwkbGeometryType eGeometryType;
-    int bIs3D = FALSE;
+    OGRErr err = OGRReadWKBGeometryType( pabyData, &eGeometryType, &bIs3D );
 
-    if( eByteOrder == wkbNDR )
-    {
-        eGeometryType = (OGRwkbGeometryType) pabyData[1];
-        bIs3D = pabyData[4] & 0x80 || pabyData[2] & 0x80;
-    }
-    else
-    {
-        eGeometryType = (OGRwkbGeometryType) pabyData[4];
-        bIs3D = pabyData[1] & 0x80 || pabyData[3] & 0x80;
-    }
-
-    if( eGeometryType != wkbLineString )
+    if( err != OGRERR_NONE || eGeometryType != wkbLineString )
         return OGRERR_CORRUPT_DATA;
 
 /* -------------------------------------------------------------------- */
@@ -926,7 +939,8 @@ OGRErr OGRLineString::importFromWkb( unsigned char * pabyData,
 /************************************************************************/
 
 OGRErr  OGRLineString::exportToWkb( OGRwkbByteOrder eByteOrder,
-                               unsigned char * pabyData ) const
+                                    unsigned char * pabyData,
+                                    OGRwkbVariant eWkbVariant ) const
 
 {
 /* -------------------------------------------------------------------- */
@@ -938,6 +952,9 @@ OGRErr  OGRLineString::exportToWkb( OGRwkbByteOrder eByteOrder,
 /*      Set the geometry feature type.                                  */
 /* -------------------------------------------------------------------- */
     GUInt32 nGType = getGeometryType();
+
+    if ( eWkbVariant == wkbVariantIso )
+        nGType = getIsoGeometryType();
     
     if( eByteOrder == wkbNDR )
         nGType = CPL_LSBWORD32( nGType );
@@ -1123,7 +1140,7 @@ OGRErr OGRLineString::exportToWkt( char ** ppszDstText ) const
 /* -------------------------------------------------------------------- */
 /*      Handle special empty case.                                      */
 /* -------------------------------------------------------------------- */
-    if( nPointCount == 0 )
+    if( IsEmpty() )
     {
         CPLString osEmpty;
         osEmpty.Printf("%s EMPTY",getGeometryName());
@@ -1287,7 +1304,7 @@ void OGRLineString::getEnvelope( OGREnvelope * psEnvelope ) const
 {
     double      dfMinX, dfMinY, dfMaxX, dfMaxY;
 
-    if( nPointCount == 0 )
+    if( IsEmpty() )
     {
         psEnvelope->MinX = 0;
         psEnvelope->MaxX = 0;
@@ -1329,7 +1346,7 @@ void OGRLineString::getEnvelope( OGREnvelope3D * psEnvelope ) const
 
     double      dfMinZ, dfMaxZ;
 
-    if( nPointCount == 0 || padfZ == NULL )
+    if( IsEmpty() || padfZ == NULL )
     {
         psEnvelope->MinZ = 0;
         psEnvelope->MaxZ = 0;
@@ -1365,6 +1382,9 @@ OGRBoolean OGRLineString::Equals( OGRGeometry * poOther ) const
     if( poOther->getGeometryType() != getGeometryType() )
         return FALSE;
 
+    if( IsEmpty() && poOther->IsEmpty() )
+        return TRUE;
+    
     // we should eventually test the SRS.
 
     if( getNumPoints() != poOLine->getNumPoints() )

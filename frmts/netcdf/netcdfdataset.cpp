@@ -1577,6 +1577,17 @@ int netCDFDataset::SetDefineMode( int bNewDefineMode )
 }
 
 /************************************************************************/
+/*                      GetMetadataDomainList()                         */
+/************************************************************************/
+
+char **netCDFDataset::GetMetadataDomainList()
+{
+    return BuildMetadataDomainList(GDALDataset::GetMetadataDomainList(),
+                                   TRUE,
+                                   "SUBDATASETS", NULL);
+}
+
+/************************************************************************/
 /*                            GetMetadata()                             */
 /************************************************************************/
 char **netCDFDataset::GetMetadata( const char *pszDomain )
@@ -4247,7 +4258,8 @@ int netCDFDataset::IdentifyFormat( GDALOpenInfo * poOpenInfo, bool bCheckExt = T
         if ( bCheckExt ) { /* Check by default */
             const char* pszExtension = CPLGetExtension( poOpenInfo->pszFilename );
             if ( ! ( EQUAL( pszExtension, "nc")  || EQUAL( pszExtension, "cdf") 
-                     || EQUAL( pszExtension, "nc2") || EQUAL( pszExtension, "nc4") ) )
+                     || EQUAL( pszExtension, "nc2") || EQUAL( pszExtension, "nc4")
+					 || EQUAL( pszExtension, "nc3") || EQUAL( pszExtension, "grd") ) )
                 return NCDF_FORMAT_HDF5;
         }
 #endif

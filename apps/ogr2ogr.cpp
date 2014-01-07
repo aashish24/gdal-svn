@@ -91,7 +91,8 @@ static TargetLayerInfo* SetupTargetLayer( OGRDataSource *poSrcDS,
                                                 int bExplodeCollections,
                                                 const char* pszZField,
                                                 char **papszFieldMap,
-                                                const char* pszWHERE );
+                                                const char* pszWHERE,
+                                                int bExactFieldNameMatch );
 
 static void FreeTargetLayerInfo(TargetLayerInfo* psInfo);
 
@@ -866,6 +867,7 @@ int main( int nArgc, char ** papszArgv )
     const char  *pszSourceSRSDef = NULL;
     OGRSpatialReference *poOutputSRS = NULL;
     int         bNullifyOutputSRS = FALSE;
+    int         bExactFieldNameMatch = TRUE;
     OGRSpatialReference *poSourceSRS = NULL;
     char        *pszNewLayerName = NULL;
     const char  *pszWHERE = NULL;
@@ -991,6 +993,10 @@ int main( int nArgc, char ** papszArgv )
         else if( EQUAL(papszArgv[iArg],"-update") )
         {
             bUpdate = TRUE;
+        }
+        else if( EQUAL(papszArgv[iArg],"-relaxedFieldNameMatch") )
+        {
+            bExactFieldNameMatch = FALSE;
         }
         else if( EQUAL(papszArgv[iArg],"-fid") )
         {
@@ -1409,7 +1415,7 @@ int main( int nArgc, char ** papszArgv )
     }
 
     if (pszFieldMap && bAddMissingFields)
-{
+    {
         Usage("if -addfields is specified, -fieldmap cannot be used.");
     }
 
@@ -1770,7 +1776,8 @@ int main( int nArgc, char ** papszArgv )
                                                 bExplodeCollections,
                                                 pszZField,
                                                 papszFieldMap,
-                                                pszWHERE );
+                                                pszWHERE,
+                                                bExactFieldNameMatch );
 
             poPassedLayer->ResetReading();
 
@@ -1792,7 +1799,7 @@ int main( int nArgc, char ** papszArgv )
                           "Terminating translation prematurely after failed\n"
                           "translation from sql statement." );
 
-                exit( 1 );
+                nRetCode = 1;
             }
 
             FreeTargetLayerInfo(psInfo);
@@ -1925,7 +1932,8 @@ int main( int nArgc, char ** papszArgv )
                                                     bExplodeCollections,
                                                     pszZField,
                                                     papszFieldMap,
-                                                    pszWHERE );
+                                                    pszWHERE,
+						    bExactFieldNameMatch );
 
                 if( psInfo == NULL && !bSkipFailures )
                     exit(1);
@@ -1974,7 +1982,8 @@ int main( int nArgc, char ** papszArgv )
                                 "translation of layer %s (use -skipfailures to skip errors)\n",
                                 poLayer->GetName() );
 
-                        exit( 1 );
+                        nRetCode = 1;
+                        break;
                     }
                 }
                 else
@@ -2123,7 +2132,7 @@ int main( int nArgc, char ** papszArgv )
 
         /* Second pass to do the real job */
         for( iLayer = 0; 
-            iLayer < nLayerCount; 
+            iLayer < nLayerCount && nRetCode == 0; 
             iLayer++ )
         {
             OGRLayer        *poLayer = papoLayers[iLayer];
@@ -2199,7 +2208,8 @@ int main( int nArgc, char ** papszArgv )
                                                 bExplodeCollections,
                                                 pszZField,
                                                 papszFieldMap,
-                                                pszWHERE );
+                                                pszWHERE,
+						bExactFieldNameMatch );
 
             poPassedLayer->ResetReading();
 
@@ -2223,7 +2233,7 @@ int main( int nArgc, char ** papszArgv )
                         "translation of layer %s (use -skipfailures to skip errors)\n", 
                         poLayer->GetName() );
 
-                exit( 1 );
+                nRetCode = 1;
             }
 
             FreeTargetLayerInfo(psInfo);
@@ -2319,6 +2329,7 @@ static void Usage(const char* pszAdditionalMsg, int bShort)
             "               [-wrapdateline][-datelineoffset val]\n"
             "               [[-simplify tolerance] | [-segmentize max_dist]]\n"
             "               [-addfields]\n"
+            "               [-relaxedFieldNameMatch]\n"
             "               [-fieldTypeToString All|(type1[,type2]*)] [-unsetFieldWidth]\n"
             "               [-fieldmap identity | index1[,index2]*]\n"
             "               [-splitlistfields] [-maxsubfields val]\n"
@@ -2483,7 +2494,8 @@ static TargetLayerInfo* SetupTargetLayer( OGRDataSource *poSrcDS,
                                                 int bExplodeCollections,
                                                 const char* pszZField,
                                                 char **papszFieldMap,
-                                                const char* pszWHERE )
+                                                const char* pszWHERE,
+                                                int bExactFieldNameMatch )
 {
     OGRLayer    *poDstLayer;
     OGRFeatureDefn *poSrcFDefn;
@@ -3019,7 +3031,7 @@ static TargetLayerInfo* SetupTargetLayer( OGRDataSource *poSrcDS,
         for( iField = 0; iField < nSrcFieldCount; iField++ )
         {
             OGRFieldDefn* poSrcFieldDefn = poSrcFDefn->GetFieldDefn(iField);
-            int iDstField = poDstFDefn->GetFieldIndex(poSrcFieldDefn->GetNameRef());
+            int iDstField = poDstLayer->FindFieldIndex(poSrcFieldDefn->GetNameRef(), bExactFieldNameMatch);
             if (iDstField >= 0)
                 panMap[iField] = iDstField;
             else
@@ -3384,16 +3396,16 @@ static int TranslateLayer( TargetLayerInfo* psInfo,
 
             /* Optimization to avoid duplicating the source geometry in the */
             /* target feature : we steal it from the source feature for now... */
-            OGRGeometry* poStealedGeometry = NULL;
+            OGRGeometry* poStolenGeometry = NULL;
             if( !bExplodeCollections && nSrcGeomFieldCount == 1 &&
                 nDstGeomFieldCount == 1 )
             {
-                poStealedGeometry = poFeature->StealGeometry();
+                poStolenGeometry = poFeature->StealGeometry();
             }
             else if( !bExplodeCollections &&
                      psInfo->iRequestedSrcGeomField >= 0 )
             {
-                poStealedGeometry = poFeature->StealGeometry(
+                poStolenGeometry = poFeature->StealGeometry(
                     psInfo->iRequestedSrcGeomField);
             }
 
@@ -3408,14 +3420,14 @@ static int TranslateLayer( TargetLayerInfo* psInfo,
 
                 OGRFeature::DestroyFeature( poFeature );
                 OGRFeature::DestroyFeature( poDstFeature );
-                OGRGeometryFactory::destroyGeometry( poStealedGeometry );
+                OGRGeometryFactory::destroyGeometry( poStolenGeometry );
                 return FALSE;
             }
 
-            /* ... and now we can attach the stealed geometry */
-            if( poStealedGeometry )
+            /* ... and now we can attach the stolen geometry */
+            if( poStolenGeometry )
             {
-                poDstFeature->SetGeometryDirectly(poStealedGeometry);
+                poDstFeature->SetGeometryDirectly(poStolenGeometry);
             }
 
             if( bPreserveFID )
