@@ -73,6 +73,9 @@ OGROSMLayer::OGROSMLayer(OGROSMDataSource* poDS, const char* pszName )
     bHasUser = FALSE;
     bHasChangeset = FALSE;
     bHasOtherTags = TRUE;
+    nIndexOtherTags = -1;
+    bHasAllTags = FALSE;
+    nIndexAllTags = -1;
 
     bResetReadingAllowed = FALSE;
     bHasWarnedTooManyFeatures = FALSE;
@@ -143,6 +146,39 @@ void OGROSMLayer::ForceResetReading()
     nFeatureArraySize = 0;
     nFeatureCount = 0;
     bResetReadingAllowed = FALSE;
+}
+
+/************************************************************************/
+/*                        SetAttributeFilter()                          */
+/************************************************************************/
+
+OGRErr OGROSMLayer::SetAttributeFilter( const char* pszAttrQuery )
+{
+    if( pszAttrQuery == NULL && m_pszAttrQueryString == NULL )
+        return OGRERR_NONE;
+    if( pszAttrQuery != NULL && m_pszAttrQueryString != NULL &&
+        strcmp(pszAttrQuery, m_pszAttrQueryString) == 0 )
+        return OGRERR_NONE;
+
+    OGRErr eErr = OGRLayer::SetAttributeFilter(pszAttrQuery);
+    if( eErr != OGRERR_NONE )
+        return eErr;
+
+    if( nFeatureArrayIndex == 0 )
+    {
+        if( !poDS->IsInterleavedReading() )
+        {
+            poDS->ResetReading();
+        }
+    }
+    else
+    {
+        CPLError(CE_Warning, CPLE_AppDefined, "The new attribute filter will "
+                 "not be taken into account immediately. It is advised to "
+                 "set attribute filters for all needed layers, before reading *any* layer");
+    }
+
+    return OGRERR_NONE;
 }
 
 /************************************************************************/
@@ -413,6 +449,12 @@ void OGROSMLayer::AddField(const char* pszName, OGRFieldType eFieldType)
 
     else if( strcmp(pszName, "osm_way_id") == 0 )
         nIndexOSMWayId = nIndex;
+
+    else if( strcmp(pszName, "other_tags") == 0 )
+        nIndexOtherTags = nIndex;
+
+    else if( strcmp(pszName, "all_tags") == 0 )
+        nIndexAllTags = nIndex;
 }
 
 /************************************************************************/
@@ -430,10 +472,10 @@ int OGROSMLayer::GetFieldIndex(const char* pszName)
 }
 
 /************************************************************************/
-/*                              AddInOtherTag()                         */
+/*                         AddInOtherOrAllTags()                        */
 /************************************************************************/
 
-int OGROSMLayer::AddInOtherTag(const char* pszK)
+int OGROSMLayer::AddInOtherOrAllTags(const char* pszK)
 {
     int bAddToOtherTags = FALSE;
 
@@ -566,10 +608,14 @@ void OGROSMLayer::SetFieldsFromTags(OGRFeature* poFeature,
         const char* pszV = pasTags[j].pszV;
         int nIndex = GetFieldIndex(pszK);
         if( nIndex >= 0 )
-            poFeature->SetField(nIndex, pszV);
-        else if ( HasOtherTags() )
         {
-            if ( AddInOtherTag(pszK) )
+            poFeature->SetField(nIndex, pszV);
+            if( nIndexAllTags < 0 )
+                continue;
+        }
+        if ( nIndexAllTags >= 0 || nIndexOtherTags >= 0 )
+        {
+            if ( AddInOtherOrAllTags(pszK) )
             {
                 int nLenK = (int)strlen(pszK);
                 int nLenV = (int)strlen(pszV);
@@ -580,7 +626,7 @@ void OGROSMLayer::SetFieldsFromTags(OGRFeature* poFeature,
                     1 >= ALLTAGS_LENGTH - 1 )
                 {
                     if( !bHasWarnedAllTagsTruncated )
-                        CPLDebug("OSM", "all_tags field truncated for feature " CPL_FRMT_GIB, nID);
+                        CPLDebug("OSM", "all_tags/other_tags field truncated for feature " CPL_FRMT_GIB, nID);
                     bHasWarnedAllTagsTruncated = TRUE;
                     continue;
                 }
@@ -612,7 +658,10 @@ void OGROSMLayer::SetFieldsFromTags(OGRFeature* poFeature,
     if( nAllTagsOff )
     {
         pszAllTags[nAllTagsOff] = '\0';
-        poFeature->SetField(GetLayerDefn()->GetFieldCount() - 1, pszAllTags);
+        if( nIndexAllTags >= 0 )
+            poFeature->SetField(nIndexAllTags, pszAllTags);
+        else
+            poFeature->SetField(nIndexOtherTags, pszAllTags);
     }
 }
 

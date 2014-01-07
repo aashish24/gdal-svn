@@ -66,7 +66,9 @@ void jpeg_vsiio_dest (j_compress_ptr cinfo, VSILFILE * outfile);
 
 //  Geographic system without EPSG parameters
 
-#define UNKNOWN_CRS 999999
+#define UNKNOWN_CRS     999999
+#define NO_CRS          0
+#define DEFAULT_CRS     NO_CRS
 
 //  Bitmap Mask for the whole dataset start with -99999
 
@@ -419,6 +421,11 @@ public:
     bool                bCreateObjectTable;
     CPLXMLNode*         phMetadata;
     CPLString           sCellDepth;
+
+    bool                bGenPyramid;
+    CPLString           sPyramidResampling;
+    int                 nPyramidLevels;
+
     CPLString           sCompressionType;
     int                 nCompressQuality;
     CPLString           sWKText;

@@ -1,5 +1,5 @@
 /******************************************************************************
- * $Id: ogrdxf_dimension.cpp 19643 2010-05-08 21:56:18Z rouault $
+ * $Id$
  *
  * Project:  DXF Translator
  * Purpose:  Implements translation support for HATCH elements as part
@@ -34,7 +34,7 @@
 
 #include "ogrdxf_polyline_smooth.h"
 
-CPL_CVSID("$Id: ogrdxf_dimension.cpp 19643 2010-05-08 21:56:18Z rouault $");
+CPL_CVSID("$Id$");
 
 #ifndef PI
 #define PI  3.14159265358979323846
@@ -102,6 +102,14 @@ OGRFeature *OGRDXFLayer::TranslateHATCH()
     OGRGeometry* poFinalGeom = (OGRGeometry *)
         OGRBuildPolygonFromEdges( (OGRGeometryH) &oGC,
                                   TRUE, TRUE, 0.0000001, &eErr );
+    if( eErr != OGRERR_NONE )
+    {
+        delete poFinalGeom;
+        OGRMultiLineString* poMLS = new OGRMultiLineString();
+        for(int i=0;i<oGC.getNumGeometries();i++)
+            poMLS->addGeometry(oGC.getGeometryRef(i));
+        poFinalGeom = poMLS;
+    }
 
     ApplyOCSTransformer( poFinalGeom );
     poFeature->SetGeometryDirectly( poFinalGeom );
@@ -215,22 +223,22 @@ OGRErr OGRDXFLayer::CollectBoundaryPath( OGRGeometryCollection *poGC )
             double dfEndY;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 10 )
-                dfStartX = atof(szLineBuf);
+                dfStartX = CPLAtof(szLineBuf);
             else
                 break;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 20 )
-                dfStartY = atof(szLineBuf);
+                dfStartY = CPLAtof(szLineBuf);
             else
                 break;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 11 )
-                dfEndX = atof(szLineBuf);
+                dfEndX = CPLAtof(szLineBuf);
             else
                 break;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 21 )
-                dfEndY = atof(szLineBuf);
+                dfEndY = CPLAtof(szLineBuf);
             else
                 break;
 
@@ -254,27 +262,27 @@ OGRErr OGRDXFLayer::CollectBoundaryPath( OGRGeometryCollection *poGC )
             int    bCounterClockwise = FALSE;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 10 )
-                dfCenterX = atof(szLineBuf);
+                dfCenterX = CPLAtof(szLineBuf);
             else
                 break;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 20 )
-                dfCenterY = atof(szLineBuf);
+                dfCenterY = CPLAtof(szLineBuf);
             else
                 break;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 40 )
-                dfRadius = atof(szLineBuf);
+                dfRadius = CPLAtof(szLineBuf);
             else
                 break;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 50 )
-                dfStartAngle = -1 * atof(szLineBuf);
+                dfStartAngle = CPLAtof(szLineBuf);
             else
                 break;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 51 )
-                dfEndAngle = -1 * atof(szLineBuf);
+                dfEndAngle = CPLAtof(szLineBuf);
             else
                 break;
 
@@ -283,15 +291,13 @@ OGRErr OGRDXFLayer::CollectBoundaryPath( OGRGeometryCollection *poGC )
             else if (nCode >= 0)
                 poDS->UnreadValue();
 
-            if( bCounterClockwise )
-            {
-                double dfTemp = dfStartAngle;
-                dfStartAngle = dfEndAngle;
-                dfEndAngle = dfTemp;
-            }
-
             if( dfStartAngle > dfEndAngle )
                 dfEndAngle += 360.0;
+            if( bCounterClockwise )
+            {
+                dfStartAngle *= -1; 
+                dfEndAngle *= -1; 
+            }
 
             OGRGeometry *poArc = OGRGeometryFactory::approximateArcAngles( 
                 dfCenterX, dfCenterY, 0.0,
@@ -319,37 +325,37 @@ OGRErr OGRDXFLayer::CollectBoundaryPath( OGRGeometryCollection *poGC )
             int    bCounterClockwise = FALSE;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 10 )
-                dfCenterX = atof(szLineBuf);
+                dfCenterX = CPLAtof(szLineBuf);
             else
                 break;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 20 )
-                dfCenterY = atof(szLineBuf);
+                dfCenterY = CPLAtof(szLineBuf);
             else
                 break;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 11 )
-                dfMajorX = atof(szLineBuf);
+                dfMajorX = CPLAtof(szLineBuf);
             else
                 break;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 21 )
-                dfMajorY = atof(szLineBuf);
+                dfMajorY = CPLAtof(szLineBuf);
             else
                 break;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 40 )
-                dfRatio = atof(szLineBuf) / 100.0;
+                dfRatio = CPLAtof(szLineBuf) / 100.0;
             else
                 break;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 50 )
-                dfStartAngle = -1 * atof(szLineBuf);
+                dfStartAngle = CPLAtof(szLineBuf);
             else
                 break;
 
             if( poDS->ReadValue(szLineBuf,sizeof(szLineBuf)) == 51 )
-                dfEndAngle = -1 * atof(szLineBuf);
+                dfEndAngle = CPLAtof(szLineBuf);
             else
                 break;
 
@@ -358,15 +364,13 @@ OGRErr OGRDXFLayer::CollectBoundaryPath( OGRGeometryCollection *poGC )
             else if (nCode >= 0)
                 poDS->UnreadValue();
 
-            if( bCounterClockwise )
-            {
-                double dfTemp = dfStartAngle;
-                dfStartAngle = dfEndAngle;
-                dfEndAngle = dfTemp;
-            }
-
             if( dfStartAngle > dfEndAngle )
                 dfEndAngle += 360.0;
+            if( bCounterClockwise )
+            {
+                dfStartAngle *= -1; 
+                dfEndAngle *= -1; 
+            }
 
             dfMajorRadius = sqrt( dfMajorX * dfMajorX + dfMajorY * dfMajorY );
             dfMinorRadius = dfMajorRadius * dfRatio;

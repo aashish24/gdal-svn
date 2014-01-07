@@ -190,6 +190,7 @@ class CPL_DLL OGRLayer
  protected:
     OGRStyleTable       *m_poStyleTable;
     OGRFeatureQuery     *m_poAttrQuery;
+    char                *m_pszAttrQueryString;
     OGRLayerAttrIndex   *m_poAttrIndex;
 
     int                  m_nRefCount;
@@ -449,6 +450,7 @@ void CPL_DLL RegisterOGRElastic();
 void CPL_DLL RegisterOGRPDF();
 void CPL_DLL RegisterOGRWalk();
 void CPL_DLL RegisterOGRCartoDB();
+void CPL_DLL RegisterOGRSXF();
 CPL_C_END
 
 

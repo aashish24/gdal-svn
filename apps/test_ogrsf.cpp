@@ -768,7 +768,7 @@ static int TestOGRLayerRandomRead( OGRLayer *poLayer )
 /*      Test feature 5.                                                 */
 /* -------------------------------------------------------------------- */
     poFeature = poLayer->GetFeature( papoFeatures[4]->GetFID() );
-    if( !poFeature->Equal( papoFeatures[4] ) )
+    if( poFeature == NULL || !poFeature->Equal( papoFeatures[4] ) )
     {
         bRet = FALSE;
         printf( "ERROR: Attempt to randomly read feature %ld appears to\n"
@@ -848,7 +848,7 @@ static int TestOGRLayerSetNextByIndex( OGRLayer *poLayer )
     }
     
     poFeature = poLayer->GetNextFeature();
-    if( !poFeature->Equal( papoFeatures[1] ) )
+    if( poFeature == NULL || !poFeature->Equal( papoFeatures[1] ) )
     {
         bRet = FALSE;
         printf( "ERROR: Attempt to read feature at index %d appears to\n"
@@ -862,7 +862,7 @@ static int TestOGRLayerSetNextByIndex( OGRLayer *poLayer )
     OGRFeature::DestroyFeature(poFeature);
     
     poFeature = poLayer->GetNextFeature();
-    if( !poFeature->Equal( papoFeatures[2] ) )
+    if( poFeature == NULL || !poFeature->Equal( papoFeatures[2] ) )
     {
         bRet = FALSE;
         printf( "ERROR: Attempt to read feature after feature at index %d appears to\n"
@@ -1019,6 +1019,8 @@ static int TestOGRLayerRandomWrite( OGRLayer *poLayer )
     if( !poFeature->Equal(papoFeatures[1]) )
     {
         bRet = FALSE;
+        poFeature->DumpReadable(stderr);
+        papoFeatures[1]->DumpReadable(stderr);
         printf( "ERROR: Written feature didn't seem to retain value.\n" );
     }
     else if( bVerbose )
@@ -1055,6 +1057,15 @@ end:
 
     return bRet;
 }
+
+#ifndef INFINITY
+    static CPL_INLINE double CPLInfinity(void)
+    {
+        static double ZERO = 0;
+        return 1.0 / ZERO; /* MSVC doesn't like 1.0 / 0.0 */
+    }
+    #define INFINITY CPLInfinity()
+#endif
 
 /************************************************************************/
 /*                         TestSpatialFilter()                          */
@@ -1199,9 +1210,129 @@ static int TestSpatialFilter( OGRLayer *poLayer, int iGeomField )
         printf( "INFO: Spatial filter exclusion seems to work.\n" );
     }
 
+    // Check that GetFeature() ignores the spatial filter
+    poFeature = poLayer->GetFeature( poTargetFeature->GetFID() );
+    if( poFeature == NULL || !poFeature->Equal(poTargetFeature) )
+    {
+        bRet = FALSE;
+        printf( "ERROR: Spatial filter has been taken into account by GetFeature()\n");
+    }
+    else if( bVerbose )
+    {
+        printf( "INFO: Spatial filter is ignored by GetFeature() as expected.\n");
+    }
+    if( poFeature != NULL )
+        OGRFeature::DestroyFeature(poFeature);
+
+    if( bRet )
+    {
+        poLayer->ResetReading();
+        while( (poFeature = poLayer->GetNextFeature()) != NULL )
+        {
+            if( poFeature->Equal(poTargetFeature) )
+            {
+                OGRFeature::DestroyFeature(poFeature);
+                break;
+            }
+            else
+                OGRFeature::DestroyFeature(poFeature);
+        }
+        if( poFeature != NULL )
+        {
+            bRet = FALSE;
+            printf( "ERROR: Spatial filter has not been restored correctly after GetFeature()\n");
+        }
+    }
+
     OGRFeature::DestroyFeature(poTargetFeature);
 
+/* -------------------------------------------------------------------- */
+/*     Test infinity envelope                                           */
+/* -------------------------------------------------------------------- */
+
+#define NEG_INF -INFINITY
+#define POS_INF INFINITY
+
+    oRing.setPoint( 0, NEG_INF, NEG_INF );
+    oRing.setPoint( 1, NEG_INF, POS_INF );
+    oRing.setPoint( 2, POS_INF, POS_INF );
+    oRing.setPoint( 3, POS_INF, NEG_INF );
+    oRing.setPoint( 4, NEG_INF, NEG_INF );
+
+    OGRPolygon oInfinityFilter;
+    oInfinityFilter.addRing( &oRing );
+
+    poLayer->SetSpatialFilter( iGeomField, &oInfinityFilter );
+    poLayer->ResetReading();
+    int nCountInf = 0;
+    while( (poFeature = poLayer->GetNextFeature()) != NULL )
+    {
+        if( poFeature->GetGeomFieldRef(iGeomField) != NULL )
+            nCountInf ++;
+        delete poFeature;
+    }
+
+/* -------------------------------------------------------------------- */
+/*     Test envelope with huge coords                                   */
+/* -------------------------------------------------------------------- */
+
+#define HUGE_COORDS (1e300)
+
+    oRing.setPoint( 0, -HUGE_COORDS, -HUGE_COORDS );
+    oRing.setPoint( 1, -HUGE_COORDS, HUGE_COORDS );
+    oRing.setPoint( 2, HUGE_COORDS, HUGE_COORDS );
+    oRing.setPoint( 3, HUGE_COORDS, -HUGE_COORDS );
+    oRing.setPoint( 4, -HUGE_COORDS, -HUGE_COORDS );
+
+    OGRPolygon oHugeFilter;
+    oHugeFilter.addRing( &oRing );
+
+    poLayer->SetSpatialFilter( iGeomField, &oHugeFilter );
+    poLayer->ResetReading();
+    int nCountHuge = 0;
+    while( (poFeature = poLayer->GetNextFeature()) != NULL )
+    {
+        if( poFeature->GetGeomFieldRef(iGeomField) != NULL )
+            nCountHuge ++;
+        delete poFeature;
+    }
+
+/* -------------------------------------------------------------------- */
+/*     Reset spatial filter                                             */
+/* -------------------------------------------------------------------- */
     poLayer->SetSpatialFilter( NULL );
+
+    int nExpected = 0;
+    poLayer->ResetReading();
+    while( (poFeature = poLayer->GetNextFeature()) != NULL )
+    {
+        if( poFeature->GetGeomFieldRef(iGeomField) != NULL )
+            nExpected ++;
+        delete poFeature;
+    }
+    poLayer->ResetReading();
+
+    if( nCountInf != nExpected )
+    {
+        /*bRet = FALSE; */
+        printf( "WARNING: Infinity spatial filter returned %d features instead of %d\n",
+                nCountInf, nExpected );
+    }
+    else if( bVerbose )
+    {
+        printf( "INFO: Infinity spatial filter works as expected.\n");
+    }
+
+    if( nCountHuge != nExpected )
+    {
+        /* bRet = FALSE; */
+        printf( "WARNING: Huge coords spatial filter returned %d features instead of %d\n",
+                nCountHuge, nExpected );
+    }
+    else if( bVerbose )
+    {
+        printf( "INFO: Huge coords spatial filter works as expected.\n");
+    }
 
     return bRet;
 }
@@ -1259,7 +1390,7 @@ static int TestAttributeFilter( OGRDataSource* poDS, OGRLayer *poLayer )
 
 {
     int bRet = TRUE;
-    OGRFeature  *poFeature, *poTargetFeature;
+    OGRFeature  *poFeature, *poFeature2, *poFeature3, *poTargetFeature;
     int         nInclusiveCount, nExclusiveCount, nTotalCount;
     CPLString osAttributeFilter;
 
@@ -1305,6 +1436,8 @@ static int TestAttributeFilter( OGRDataSource* poDS, OGRLayer *poLayer )
 
     const char* pszFieldName = poTargetFeature->GetFieldDefnRef(i)->GetNameRef();
     CPLString osValue = poTargetFeature->GetFieldAsString(i);
+    if( eType == OFTReal )
+        osValue.Printf("%.18g", poTargetFeature->GetFieldAsDouble(i));
 
 /* -------------------------------------------------------------------- */
 /*      Construct inclusive filter.                                     */
@@ -1415,6 +1548,21 @@ static int TestAttributeFilter( OGRDataSource* poDS, OGRLayer *poLayer )
 
     nExclusiveCount = poLayer->GetFeatureCount();
 
+    // Check that GetFeature() ignores the attribute filter
+    poFeature2 = poLayer->GetFeature( poTargetFeature->GetFID() );
+
+    poLayer->ResetReading();
+    while( (poFeature3 = poLayer->GetNextFeature()) != NULL )
+    {
+        if( poFeature3->Equal(poTargetFeature) )
+        {
+            OGRFeature::DestroyFeature(poFeature3);
+            break;
+        }
+        else
+            OGRFeature::DestroyFeature(poFeature3);
+    }
+
     poLayer->SetAttributeFilter( NULL );
 
     nTotalCount = poLayer->GetFeatureCount();
@@ -1439,6 +1587,25 @@ static int TestAttributeFilter( OGRDataSource* poDS, OGRLayer *poLayer )
     {
         printf( "INFO: Attribute filter exclusion seems to work.\n" );
     }
+    
+    if( poFeature2 == NULL || !poFeature2->Equal(poTargetFeature) )
+    {
+        bRet = FALSE;
+        printf( "ERROR: Attribute filter has been taken into account by GetFeature()\n");
+    }
+    else if( bVerbose )
+    {
+        printf( "INFO: Attribute filter is ignored by GetFeature() as expected.\n");
+    }
+
+    if( poFeature3 != NULL )
+    {
+        bRet = FALSE;
+        printf( "ERROR: Attribute filter has not been restored correctly after GetFeature()\n");
+    }
+
+    if( poFeature2 != NULL )
+        OGRFeature::DestroyFeature(poFeature2);
 
     OGRFeature::DestroyFeature(poTargetFeature);
 

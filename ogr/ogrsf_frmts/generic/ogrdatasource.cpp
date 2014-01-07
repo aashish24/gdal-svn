@@ -1590,6 +1590,12 @@ OGRLayer* OGRDataSource::BuildLayerFromSelectInfo(void* psSelectInfoIn,
                 sFieldList.types[iOutField] = SWQ_FLOAT;
             else if( poFDefn->GetType() == OFTString )
                 sFieldList.types[iOutField] = SWQ_STRING;
+            else if( poFDefn->GetType() == OFTTime )
+                sFieldList.types[iOutField] = SWQ_TIME;
+            else if( poFDefn->GetType() == OFTDate )
+                sFieldList.types[iOutField] = SWQ_DATE;
+            else if( poFDefn->GetType() == OFTDateTime )
+                sFieldList.types[iOutField] = SWQ_TIMESTAMP;
             else
                 sFieldList.types[iOutField] = SWQ_OTHER;
 
@@ -1608,6 +1614,8 @@ OGRLayer* OGRDataSource::BuildLayerFromSelectInfo(void* psSelectInfoIn,
                 OGRGeomFieldDefn *poFDefn=poSrcLayer->GetLayerDefn()->GetGeomFieldDefn(iField);
                 int iOutField = sFieldList.count++;
                 sFieldList.names[iOutField] = (char *) poFDefn->GetNameRef();
+                if( *sFieldList.names[iOutField] == '\0' )
+                    sFieldList.names[iOutField] = "_ogr_geometry_";
                 sFieldList.types[iOutField] = SWQ_GEOMETRY;
 
                 sFieldList.table_ids[iOutField] = iTable;
